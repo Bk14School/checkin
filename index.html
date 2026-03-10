@@ -909,7 +909,16 @@ async function doLogin() {
   }
 }
 
-async function afterLogin() {
+
+async function changeActiveTerm(termVal) {
+  currentTerm = termVal;
+  showProgress('กำลังเปลี่ยนเทอม...');
+  await applyTermConfig();
+  await loadCalendarData(); // โหลดข้อมูลปฏิทินแทน
+  hideProgress();
+}
+
+  async function afterLogin() {
   document.getElementById('teacherBadge').textContent = `🎓 ${currentUser.name} • ${currentUser.isAdmin ? 'ผู้บริหาร' : currentUser.classroom}`;
   document.getElementById('teacherBadge').style.display = 'inline-flex';
   
@@ -923,6 +932,7 @@ async function afterLogin() {
       const el = document.getElementById(id);
       if(el) el.style.display='inline-block';
   });
+  
   document.getElementById('btnNavConfig').style.display = currentUser.isAdmin ? 'inline-block' : 'none';
   document.getElementById('btnNavLogin').style.display = 'none';
 
@@ -943,14 +953,6 @@ async function afterLogin() {
   
   // ให้เปิดหน้าปฏิทินเป็นหน้าแรกแทน
   openCalendarPage(); 
-}
-
-async function changeActiveTerm(termVal) {
-  currentTerm = termVal;
-  showProgress('กำลังเปลี่ยนเทอม...');
-  await applyTermConfig();
-  await loadCalendarData(); // โหลดข้อมูลปฏิทินแทน
-  hideProgress();
 }
 // =============================================
 // Check Attendance (โหลดข้อมูลเช็คชื่อ)
@@ -2986,12 +2988,6 @@ function printDailyAttendanceProfessional() {
   // <div class="meta-item"><b>วันที่เช็คชื่อ:</b> ${thaiDateFull(targetDate)}</div>
 }
   // ==============================================
-// ระบบ Homeroom (บันทึก + พิมพ์)
-// ==============================================
-
-// 1. เปิดหน้าต่างบันทึก
-// 1. เปิดหน้าต่างบันทึก (แก้ไขให้ดึงข้อมูลเดิมมาแสดงเพื่อการ Edit)
-// ==============================================
 // ระบบ Homeroom (อิงข้อมูลวันที่ปฏิทิน)
 // ==============================================
 async function openHomeroomModal() {
@@ -3055,7 +3051,13 @@ function openPrintHomeroomModal() {
   new bootstrap.Modal(document.getElementById('printHomeroomModal')).show();
 }
 
-// พิมพ์โฮมรูมรายวัน (เปลี่ยนจาก students เป็น calStudents)
+function printHomeroomChoice(mode) {
+  bootstrap.Modal.getInstance(document.getElementById('printHomeroomModal')).hide();
+  if (mode === 'daily') printDailyHomeroomReport();
+  else printMonthlyHomeroomReport(document.getElementById('hrMonthPicker').value);
+}
+
+// พิมพ์โฮมรูมรายวัน 
 async function printDailyHomeroomReport() {
   const targetDate = calEditDate || todayStr();
   const cls = document.getElementById('calClassroom').value || currentUser.classroom;
@@ -3073,7 +3075,7 @@ async function printDailyHomeroomReport() {
     }
 
     const school = document.getElementById('navSchoolName')?.textContent || 'โรงเรียน';
-    let abs = [], lea = [], sic = [];
+    let abs = [], lea = [], sic =[];
     
     const dayAtt = calDayData[targetDate] || {};
     calStudents.forEach(s => {
@@ -3116,123 +3118,13 @@ async function printDailyHomeroomReport() {
   hideProgress();
 }
 
-// พิมพ์โฮมรูมรายเดือน ต้องแก้ classroom เป็น calClassroom
+// พิมพ์โฮมรูมรายเดือน
 async function printMonthlyHomeroomReport(month) {
   showProgress('กำลังดึงข้อมูลทั้งเดือน...');
   try {
     const cls = document.getElementById('calClassroom').value || currentUser.classroom;
     const reportData = await api('getReport', { year: currentYear, classroom: cls, month: month });
     const logs = await api('getHomeroomLogs', { year: currentYear, classroom: cls });
-    
-    // โค้ด HTML เดิมของคุณทั้งหมดที่อยู่ในฟังก์ชันนี้ใช้งานต่อได้เลย แค่แทนที่ currentUser.classroom ด้วย cls
-    // ...
-// 2. บันทึกข้อมูลโฮมรูม
-async function saveHomeroom() {
-  const topics = [];
-  document.querySelectorAll('.hr-topic:checked').forEach(chk => topics.push(chk.value));
-  const note = document.getElementById('hrNote').value.trim();
-
-  if(topics.length === 0 && note === '') {
-    showToast('กรุณาเลือกหัวข้ออบรม หรือกรอกหมายเหตุ', 'error'); return;
-  }
-
-  showProgress('กำลังบันทึกโฮมรูมลงไฟล์รายเทอม...');
-  try {
-    await api('saveHomeroomLog', {
-      year: currentYear,
-      date: currentDate,
-      classroom: currentUser.classroom,
-      teacher: currentUser.name,
-      topics: topics.join(', '),
-      note: note
-    });
-    showToast('✅ บันทึกโฮมรูมสำเร็จ!', 'success');
-    bootstrap.Modal.getInstance(document.getElementById('homeroomModal')).hide();
-  } catch(e) {
-    showToast('บันทึกโฮมรูมล้มเหลว: ' + e.message, 'error');
-  }
-  hideProgress();
-}
-
-// 3. เปิดหน้าต่างเลือกพิมพ์
-function openPrintHomeroomModal() {
-  const currentMonth = currentDate.split('/')[1]; 
-  document.getElementById('hrMonthPicker').value = currentMonth;
-  document.getElementById('lblPrintHrDate').textContent = currentDate;
-    updateMonthDropdown(); // เพิ่มบรรทัดนี้ตอนเปิดหน้าต่าง
-
-  new bootstrap.Modal(document.getElementById('printHomeroomModal')).show();
-}
-
-// 4. แยกไปพิมพ์รายวัน หรือ รายเดือน
-function printHomeroomChoice(mode) {
-  bootstrap.Modal.getInstance(document.getElementById('printHomeroomModal')).hide();
-  if (mode === 'daily') printDailyHomeroomReport();
-  else printMonthlyHomeroomReport(document.getElementById('hrMonthPicker').value);
-}
-
-// 5. พิมพ์รายงานโฮมรูมรายวัน
-async function printDailyHomeroomReport() {
-  showProgress('กำลังดึงข้อมูล...');
-  try {
-    const logs = await api('getHomeroomLogs', { year: currentYear, classroom: currentUser.classroom });
-    const todayLog = logs.find(l => l.date === currentDate);
-    
-    let topics = todayLog ? todayLog.topics.split(',') : [];
-    let note = todayLog ? todayLog.note : '';
-    
-    if (!todayLog && !confirm(`ยังไม่ได้บันทึกโฮมรูมของวันที่ ${currentDate}\nต้องการพิมพ์รายงานโฮมรูมเปล่าๆ หรือไม่?`)) {
-      hideProgress(); return;
-    }
-
-    const school = document.getElementById('navSchoolName')?.textContent || 'โรงเรียนบ้านคลอง 14';
-    let abs = [], lea = [], sic = [];
-    
-    students.forEach(s => {
-      if(attendance[s.studentId] === 'ข') abs.push(s.name);
-      else if(attendance[s.studentId] === 'ล') lea.push(s.name);
-      else if(attendance[s.studentId] === 'ป') sic.push(s.name);
-    });
-
-    const totalAbsent = abs.length + lea.length + sic.length;
-    let attHtml = totalAbsent === 0 
-      ? `<div style="background:#d1fae5; color:#065f46; padding:15px; border-radius:8px; text-align:center; font-weight:bold; font-size:16px; border:1px solid #34d399;">✅ วันนี้นักเรียนมาเรียนครบและเข้าร่วมโฮมรูมครบทุกคน</div>`
-      : `<div style="background:#fee2e2; border:1px solid #fca5a5; padding:15px; border-radius:8px;">
-          <h4 style="margin-top:0; color:#991b1b; font-size:15px;">รายชื่อนักเรียนที่ไม่ได้เข้าร่วมโฮมรูม</h4>
-          <ul style="margin-bottom:0; font-size:14px; padding-left:20px;">
-            ${abs.length ? `<li><b>ขาด:</b> ${abs.join(', ')}</li>` : ''}
-            ${lea.length ? `<li><b>ลา:</b> ${lea.join(', ')}</li>` : ''}
-            ${sic.length ? `<li><b>ป่วย:</b> ${sic.join(', ')}</li>` : ''}
-          </ul>
-        </div>`;
-
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>โฮมรูม ${currentDate}</title>
-    <style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');
-    body{font-family:'Sarabun',sans-serif; padding:20px; font-size:15px; color:#111;}
-    .box{border:1px solid #ccc; padding:15px; border-radius:8px; min-height:80px;}</style></head><body>
-      <h2 style="text-align:center;">บันทึกกิจกรรมโฮมรูม (Homeroom)</h2>
-      <h3 style="text-align:center;">${school}</h3>
-      <p style="text-align:center;"><b>ชั้นเรียน:</b> ${currentUser.classroom} &nbsp;|&nbsp; <b>วันที่:</b> ${thaiDateFull(currentDate)}</p>
-      ${attHtml}
-      <h4>📋 หัวข้อที่อบรม</h4>
-      <ul style="line-height:1.8;">${topics.length>0 ? topics.map(t=>`<li>${t.trim()}</li>`).join('') : '<li>- ไม่มีข้อมูล -</li>'}</ul>
-      <h4>📝 หมายเหตุเพิ่มเติม</h4>
-      <div class="box">${note?note.replace(/\n/g,'<br>'):'- ไม่มี -'}</div>
-      <div style="display:flex; justify-content:space-around; margin-top:60px; text-align:center;">
-        <div>( ${currentUser.name} )<br>ครูประจำชั้น</div>
-        <div>( .................................................. )<br>ผู้อำนวยการโรงเรียน</div>
-      </div><script>window.onload=()=>window.print();<\/script></body></html>`;
-    openPrint(html);
-  } catch(e) { showToast(e.message, 'error'); }
-  hideProgress();
-}
-
-// 6. พิมพ์รายงานโฮมรูมรายเดือน (เรียงลำดับวันที่ถูกต้อง)
-async function printMonthlyHomeroomReport(month) {
-  showProgress('กำลังดึงข้อมูลทั้งเดือน...');
-  try {
-    const reportData = await api('getReport', { year: currentYear, classroom: currentUser.classroom, month: month });
-    const logs = await api('getHomeroomLogs', { year: currentYear, classroom: currentUser.classroom });
     
     const THAI_M =['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
     const THAI_MONTH_NAME = THAI_M[parseInt(month)];
@@ -3241,23 +3133,17 @@ async function printMonthlyHomeroomReport(month) {
 
     if(reportData.dates.length === 0) { showToast('เดือนนี้ยังไม่มีการเช็คชื่อ', 'error'); hideProgress(); return; }
 
-    // เรียงวันที่จากน้อยไปมาก
- const sortedDates = reportData.dates.sort((a, b) => {
-    const da = a.split('/').map(Number); // [วัน, เดือน, ปี]
-    const db = b.split('/').map(Number);
-    
-  
-    const valA = da[2] * 10000 + da[1] * 100 + da[0];
-    const valB = db[2] * 10000 + db[1] * 100 + db[0];
-    
-    return valA - valB;
-});
+    const sortedDates = reportData.dates.sort((a, b) => {
+      const da = a.split('/').map(Number);
+      const db = b.split('/').map(Number);
+      return (da[2]*10000 + da[1]*100 + da[0]) - (db[2]*10000 + db[1]*100 + db[0]);
+    });
 
     const displayYear = sortedDates[0].split('/')[2];
 
     let rows = '';
     sortedDates.forEach((dateStr, idx) => {
-      let abs = [];
+      let abs =[];
       reportData.students.forEach(s => {
         const st = reportData.attendance[s.studentId][dateStr];
         if (st === 'ข' || st === 'ล' || st === 'ป') abs.push(`${s.name} (${st})`);
@@ -3286,7 +3172,7 @@ async function printMonthlyHomeroomReport(month) {
       <div class="head">
         <h2>บันทึกการจัดกิจกรรมโฮมรูม (Homeroom) รายเดือน</h2>
         <h3>${school}</h3>
-        <p><b>ชั้นเรียน:</b> ${currentUser.classroom} &nbsp;|&nbsp; <b>เดือน:</b> ${THAI_MONTH_NAME} ${displayYear} &nbsp;|&nbsp; <b>ครู:</b> ${currentUser.name}</p>
+        <p><b>ชั้นเรียน:</b> ${cls} &nbsp;|&nbsp; <b>เดือน:</b> ${THAI_MONTH_NAME} ${displayYear} &nbsp;|&nbsp; <b>ครู:</b> ${currentUser.name}</p>
       </div>
       <table>
         <thead><tr><th width="40">ที่</th><th width="60">ว/ด/ป</th><th width="300">หัวข้อที่อบรม</th><th width="200">นักเรียนที่ ข/ล/ป</th><th width="200">หมายเหตุ</th><th width="80">ลายมือชื่อ</th></tr></thead>
@@ -3301,11 +3187,11 @@ async function printMonthlyHomeroomReport(month) {
   } catch(e) { showToast(e.message, 'error'); }
   hideProgress();
 }
-  async function updateMonthDropdown() {
+
+async function updateMonthDropdown() {
   const picker = document.getElementById('hrMonthPicker');
   picker.innerHTML = '<option value="">กำลังโหลดเดือน...</option>';
   
-  // เรียกฟังก์ชันจาก Backend เพื่อขอลิสต์เดือน
   const months = await api('getMonthsForTerm', { term: currentYear });
   const THAI_M =['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
   
