@@ -317,22 +317,27 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
 <!-- Navbar -->
 <div class="app-nav">
   <div class="container">
-    <a class="brand" href="#" onclick="if(currentUser) openCalendarPage(); return false;">
+    <a class="brand" href="#" onclick="if(currentUser) showPage('checkPage'); return false;">
       <div class="brand-logo">14</div>
       <span class="d-none d-sm-inline" id="navSchoolName">โรงเรียนบ้านคลอง 14</span>
     </a>
     <div class="nav-info">
       <div class="teacher-badge" id="teacherBadge">🎓 ครูสมศรี • ป.3</div>
-      <select id="navTermSelector" class="form-select form-select-sm" style="display:none; width:auto; font-weight:bold; color:#0284c7; border-color:#0ea5e9;" onchange="changeActiveTerm(this.value)">
+        <select id="navTermSelector" class="form-select form-select-sm" style="display:none; width:auto; font-weight:bold; color:#0284c7; border-color:#0ea5e9;" onchange="changeActiveTerm(this.value)">
          <option value="1">เทอม 1</option>
          <option value="2">เทอม 2</option>
       </select>
       
-      <button class="nav-btn" id="btnNavDash" onclick="openDashboard()" style="display:none;">📊 สถิติ</button>
-      <button class="nav-btn" id="btnNav3" onclick="openCalendarPage()" style="display:none;">📅 ปฏิทิน</button>
-      <button class="nav-btn" id="btnNav2" onclick="showPage('reportPage')" style="display:none;">📊 รายงาน</button>
-      <button class="nav-btn" id="btnNavConfig" onclick="openConfigModal()" style="display:none;">⚙️</button>
-      <button class="nav-btn danger" id="btnLogout" onclick="logout()" style="display:none;">ออก</button>
+      <!-- เมนูหลังจากล็อกอิน -->
+      <button class="nav-btn" id="btnNavDash" onclick="openDashboard()"       style="display:none;">📊 สถิติภาพรวม</button>
+      <button class="nav-btn" id="btnNav1" onclick="showPage('checkPage')"    style="display:none;">✅ เช็คชื่อ</button>
+      <button class="nav-btn" id="btnNav3" onclick="openCalendarPage()"       style="display:none;">📅 ปฏิทิน</button>
+      <button class="nav-btn" id="btnNav2" onclick="showPage('reportPage')"   style="display:none;">📊 รายงาน</button>
+      <button class="nav-btn" id="btnNavConfig" onclick="openConfigModal()"   style="display:none;" title="ตั้งค่าปีการศึกษา">⚙️</button>
+      <button class="nav-btn danger" id="btnLogout" onclick="logout()"        style="display:none;">ออกจากระบบ</button>
+      
+      <!-- ปุ่มสำหรับกลับไปหน้า Login เวลาอยู่หน้า Dashboard (ถ้ายังไม่ล็อกอิน) -->
+      <button class="nav-btn" id="btnNavLogin" onclick="goBackToLogin()" style="display:none; background:var(--primary); color:#fff; border-color:var(--primary);">🔑 ล็อกอินครู</button>
     </div>
   </div>
 </div>
@@ -635,13 +640,6 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
           <button class="nav-btn" onclick="printCalMonth()" style="font-size:.82rem;padding:5px 12px;">🖨️ รายเดือน</button>
           <button class="nav-btn" onclick="printCalStudent()" style="font-size:.82rem;padding:5px 12px;">👤 รายบุคคล</button>
         </div>
-        <!-- ใน div class="app-card" ของปฏิทิน -->
-<div class="d-flex gap-2 mb-3 flex-wrap">
-  <button class="nav-btn" onclick="openAddStudent()">➕ เพิ่ม นร.</button>
-  <button class="nav-btn" onclick="openHomeroomModal()">📝 บันทึกโฮมรูม</button>
-  <button class="nav-btn" onclick="printDailyAttendanceProfessional()">🖨️ พิมพ์รายวัน</button>
-  <button class="nav-btn" onclick="openPrintHomeroomModal()">🗣️ พิมพ์โฮมรูม</button>
-</div>
       </div>
 
       <!-- Calendar Grid -->
@@ -913,14 +911,12 @@ async function afterLogin() {
     const termSel = document.getElementById('navTermSelector');
     termSel.style.display = 'inline-block';
     termSel.value = currentTerm;
-  }
-  
-  // ปรับรายการเมนู (ถ้าคุณนำปุ่ม checkPage ออกจาก Navbar ก็ให้เอา 'btnNav1' ออก)
-  ['btnNavDash','btnNav1','btnNav2','btnNav3','btnLogout'].forEach(id => document.getElementById(id).style.display='inline-block');
+  }['btnNavDash','btnNav1','btnNav2','btnNav3','btnLogout'].forEach(id => document.getElementById(id).style.display='inline-block');
   document.getElementById('btnNavConfig').style.display = currentUser.isAdmin ? 'inline-block' : 'none';
   document.getElementById('btnNavLogin').style.display = 'none';
 
   setupReportClassroomSelect();
+  showPage('checkPage');
   
   if (!currentYear) {
     if (currentUser.isAdmin) {
@@ -933,12 +929,10 @@ async function afterLogin() {
     return;
   }
 
-  // 1. ตั้งค่าเทอมให้เรียบร้อยก่อน
-  await applyTermConfig(); 
-
-  // 2. เปลี่ยนมาเปิดหน้าปฏิทินแทนหน้าเช็คชื่อ
-  openCalendarPage(); 
+  await applyTermConfig(); // อัปเดตวัน และโหลดวันหยุด
+  await loadAttendance(); 
 }
+
   async function changeActiveTerm(termVal) {
   currentTerm = termVal;
   showProgress('กำลังเปลี่ยนเทอม...');
@@ -3879,4 +3873,3 @@ async function printMonthlyHomeroomReport(month) {
 </div>
 </body>
 </html>
-
