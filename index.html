@@ -2470,7 +2470,15 @@ function printCalStudent() {
 // =============================================
 let calYear  = 0;
 let calMonth = 0;
-let calStudents  =
+let calStudents  =[];
+let calDayData   = {};    
+// (ลบ let calHolidays = {}; ออกไปแล้วเพราะประกาศไว้ด้านบนสุดแล้ว)
+let calEditDate  = '';
+let calEditAtt   = {};
+let calModalInst = null;
+let calHolModalInst = null;
+let calHolEditDate  = '';
+let calDayNotes    = {};   
 
 const THAI_MONTHS_CAL =['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
                           'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
