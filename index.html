@@ -542,7 +542,10 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
         <p class="text-muted mb-4">กรุณาเลือกรูปแบบรายงานที่ต้องการพิมพ์</p>
         <div class="d-grid gap-3">
           <button class="btn btn-outline-warning btn-lg fw-bold text-dark" onclick="printHomeroomChoice('daily')">📄 พิมพ์ของวันนี้<br><span style="font-size:0.8rem; font-weight:normal;">(เฉพาะวันที่ <span id="lblPrintHrDate"></span>)</span></button>
-          <div class="d-flex gap-2 align-items-stretch mt-3"><select id="hrMonthPicker" class="form-select fw-bold" style="border-color:#f59e0b;"></select><button class="btn btn-warning flex-grow-1 fw-bold text-dark" onclick="printHomeroomChoice('monthly')">📊 พิมพ์สรุปทั้งเดือน</button></div>
+          <div class="d-flex gap-2 align-items-stretch mt-3">
+<select id="hrMonthPicker" class="form-select fw-bold" style="border-color:#f59e0b;">
+    <!-- ตัวเลือกจะถูกสร้างด้วย JS -->
+</select>            <button class="btn btn-warning flex-grow-1 fw-bold text-dark" onclick="printHomeroomChoice('monthly')">📊 พิมพ์สรุปทั้งเดือน</button></div>
         </div>
       </div>
     </div>
@@ -1992,16 +1995,32 @@ async function saveHomeroom() {
 
 function openPrintHomeroomModal() {
   const targetDate = calEditDate || todayStr();
-  document.getElementById('hrMonthPicker').value = targetDate.split('/')[1];
+  
+  // นำค่าเดือนและปีปัจจุบันจากปฏิทินมาตั้งค่าเริ่มต้นใน Dropdown
+  const currentMonthVal = `${calMonth}-${calYear}`;
+  
+  // เรียกใช้ตัวสร้าง Dropdown ชุดเดียวกับปฏิทิน
+  const picker = document.getElementById('hrMonthPicker');
+  picker.innerHTML = document.getElementById('calMonthDropdown').innerHTML; // ดึงตัวเลือกจากปฏิทินมาเลย
+  picker.value = `${calMonth}-${calYear}`; // เลือกเดือนปัจจุบันที่เปิดอยู่
+  
   document.getElementById('lblPrintHrDate').textContent = targetDate;
-  updateMonthDropdown(); 
+
   calModalInst?.hide();
   new bootstrap.Modal(document.getElementById('printHomeroomModal')).show();
 }
 
 function printHomeroomChoice(mode) {
   bootstrap.Modal.getInstance(document.getElementById('printHomeroomModal')).hide();
-  if (mode === 'daily') printDailyHomeroomReport(); else printMonthlyHomeroomReport(document.getElementById('hrMonthPicker').value);
+  
+  if (mode === 'daily') {
+    printDailyHomeroomReport();
+  } else {
+    // แยกค่าเดือนและปีออกจาก value ที่เลือกมา (เช่น "3-2569")
+    const val = document.getElementById('hrMonthPicker').value;
+    const [month, year] = val.split('-');
+    printMonthlyHomeroomReport(month, year);
+  }
 }
 
 async function printDailyHomeroomReport() {
@@ -2031,34 +2050,51 @@ async function printDailyHomeroomReport() {
   hideProgress();
 }
 
-async function printMonthlyHomeroomReport(month) {
+async function printMonthlyHomeroomReport(month, year) {
   showProgress('กำลังดึงข้อมูลทั้งเดือน...');
   try {
     const cls = document.getElementById('calClassroom').value || currentUser.classroom;
-    const reportData = await api('getReport', { year: currentYear, classroom: cls, month: month });
-    const logs = await api('getHomeroomLogs', { year: currentYear, classroom: cls });
+    // ส่งปีและเดือนไปให้ API
+    const reportData = await api('getReport', { year: year, classroom: cls, month: String(month).padStart(2,'0') });
+    const logs = await api('getHomeroomLogs', { year: year, classroom: cls });
     const logMap = {}; logs.forEach(l => logMap[l.date] = l);
 
     if(reportData.dates.length === 0) { showToast('เดือนนี้ยังไม่มีการเช็คชื่อ', 'error'); hideProgress(); return; }
-    const sortedDates = reportData.dates.sort((a,b)=>{const da=a.split('/');const db=b.split('/');return (da[2]*10000+da[1]*100+da[0])-(db[2]*10000+db[1]*100+db[0]);});
+
+    const sortedDates = reportData.dates.sort((a,b)=>{
+        const da=a.split('/'); const db=b.split('/');
+        return (da[2]*10000+da[1]*100+da[0])-(db[2]*10000+db[1]*100+db[0]);
+    });
 
     let rows = '';
     sortedDates.forEach((dateStr, idx) => {
-      let abs =[]; reportData.students.forEach(s => { const st = reportData.attendance[s.studentId][dateStr]; if (['ข','ล','ป'].includes(st)) abs.push(`${s.name} (${st})`); });
+      let abs =[]; 
+      reportData.students.forEach(s => { 
+        const st = reportData.attendance[s.studentId][dateStr]; 
+        if (['ข','ล','ป'].includes(st)) abs.push(`${s.name} (${st})`); 
+      });
       const dayLog = logMap[dateStr];
-      rows += `<tr><td style="text-align:center;">${idx+1}</td><td style="text-align:center;">${dateStr.substring(0,5)}</td><td>${dayLog?dayLog.topics.replace(/,/g,'<br>- '):'-'}</td><td style="color:#991b1b;font-size:11px;">${abs.length?abs.join('<br>'):'<span style="color:#166534;">มาครบ</span>'}</td><td>${dayLog?dayLog.note:'-'}</td><td></td></tr>`;
+      rows += `<tr>
+        <td style="text-align:center;">${idx+1}</td>
+        <td style="text-align:center;">${dateStr.substring(0,5)}</td>
+        <td>${dayLog?dayLog.topics.replace(/,/g,'<br>- '):'-'}</td>
+        <td style="color:#991b1b;font-size:11px;">${abs.length?abs.join('<br>'):'<span style="color:#166534;">มาครบ</span>'}</td>
+        <td>${dayLog?dayLog.note:'-'}</td><td></td>
+      </tr>`;
     });
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>สมุดโฮมรูม</title>
-    <style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');@page{size:A4 landscape;margin:15mm;}body{font-family:'Sarabun',sans-serif;font-size:13px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #000;padding:6px;}</style></head><body>
-      <h2 style="text-align:center;">บันทึกการจัดกิจกรรมโฮมรูม (Homeroom) รายเดือน</h2>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');@page{size:A4 landscape;margin:15mm;} body{font-family:'Sarabun',sans-serif; font-size:13px;} table{width:100%; border-collapse:collapse; margin-top:10px;} th,td{border:1px solid #000; padding:6px; vertical-align:top;} th{background:#e2e8f0; text-align:center;} .head{text-align:center; margin-bottom:15px;}</style></head><body>
+      <div class="head"><h2>บันทึกการจัดกิจกรรมโฮมรูม (Homeroom) รายเดือน</h2>
+        <h3>${document.getElementById('navSchoolName')?.textContent || 'โรงเรียน'}</h3>
+        <p><b>ชั้นเรียน:</b> ${cls} | <b>เดือน:</b> ${THAI_MONTHS_CAL[parseInt(month)]} ${year} | <b>ครู:</b> ${currentUser.name}</p>
+      </div>
       <table><thead><tr><th width="40">ที่</th><th width="60">ว/ด/ป</th><th width="300">หัวข้อที่อบรม</th><th width="200">นักเรียนที่ ข/ล/ป</th><th width="200">หมายเหตุ</th><th width="80">ลายมือชื่อ</th></tr></thead><tbody>${rows}</tbody></table>
       <script>window.onload=()=>window.print();<\/script></body></html>`;
     openPrint(html);
   } catch(e) { showToast(e.message, 'error'); }
   hideProgress();
 }
-
 function printWarningLetter(studentId) {
   const student = calStudents.find(s => s.studentId === studentId);
   if (!student) return;
