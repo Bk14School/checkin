@@ -517,10 +517,12 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
     <div class="app-card">
       <!-- Header -->
       <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-3">
-          <button class="cal-nav-btn" onclick="calChangeMonth(-1)">&#9664;</button>
-          <div id="calMonthLabel" style="font-size:1.15rem;font-weight:700;min-width:160px;text-align:center;"></div>
-          <button class="cal-nav-btn" onclick="calChangeMonth(1)">&#9654;</button>
+    <div class="d-flex align-items-center gap-2">
+          <button class="cal-nav-btn" onclick="calChangeMonth(-1)" title="เดือนก่อนหน้า">&#9664;</button>
+          <!-- เปลี่ยน Label เป็น Dropdown -->
+          <select id="calMonthDropdown" class="form-select form-select-lg fw-bold text-center" style="width:auto; min-width:180px; border:none; background-color:transparent; font-size:1.15rem; color:#1e3a5f; cursor:pointer;" onchange="calSelectMonth(this.value)">
+          </select>
+          <button class="cal-nav-btn" onclick="calChangeMonth(1)" title="เดือนถัดไป">&#9654;</button>
         </div>
    <div class="d-flex gap-2 align-items-center flex-wrap">
           <button class="nav-btn" onclick="openAddStudent()">➕ เพิ่มนักเรียน</button>
@@ -1374,9 +1376,33 @@ function renderReport(data) {
 // Calendar Page logic
 // =============================================
 function openCalendarPage() {
+  buildCalMonthDropdown(); // สร้างตัวเลือกเดือนก่อน
+
+  const dropdown = document.getElementById('calMonthDropdown');
   const now = new Date();
-  calYear  = now.getFullYear() + 543; 
-  calMonth = now.getMonth() + 1;
+  let currentM = now.getMonth() + 1;
+  let currentY = now.getFullYear() + 543;
+  let targetVal = `${currentM}-${currentY}`;
+
+  // ตรวจสอบว่าเดือนปัจจุบันอยู่ในเทอมหรือไม่
+  let optionExists = Array.from(dropdown.options).some(opt => opt.value === targetVal);
+  
+  if (optionExists) {
+    // ถ้าอยู่ ให้เลือกเดือนปัจจุบัน
+    dropdown.value = targetVal;
+    calMonth = currentM;
+    calYear = currentY;
+  } else if (dropdown.options.length > 0) {
+    // ถ้าไม่อยู่ (เช่น ตอนนี้ปิดเทอม) ให้บังคับเลือกเดือนแรกของเทอมนั้นแทน
+    dropdown.selectedIndex = 0;
+    const parts = dropdown.value.split('-');
+    calMonth = parseInt(parts[0]);
+    calYear = parseInt(parts[1]);
+  } else {
+    // กรณีไม่มีข้อมูลเทอมเลย
+    calYear = currentY;
+    calMonth = currentM;
+  }
 
   setupCalClassroomSelect();
   showPage('calendarPage');
@@ -1395,11 +1421,66 @@ function setupCalClassroomSelect() {
   }
 }
 
-function calChangeMonth(dir) {
-  calMonth += dir;
-  if (calMonth > 12) { calMonth = 1;  calYear++; }
-  if (calMonth < 1)  { calMonth = 12; calYear--; }
+// =============================================
+// ระบบ Dropdown เดือนตามเทอม
+// =============================================
+
+// สร้างรายการเดือนใน Dropdown ตามวันเปิด-ปิดเทอม
+function buildCalMonthDropdown() {
+  const dropdown = document.getElementById('calMonthDropdown');
+  dropdown.innerHTML = '';
+
+  if (!termDates.start || !termDates.end) {
+    dropdown.innerHTML = `<option value="${calMonth}-${calYear}">${THAI_MONTHS_CAL[calMonth]} ${calYear}</option>`;
+    return;
+  }
+
+  let startD = new Date(termDates.start);
+  let endD = new Date(termDates.end);
+  
+  // เซ็ตวันที่เป็นวันที่ 1 เพื่อป้องกันปัญหาข้ามเดือนตอนวันที่ 31
+  let current = new Date(startD.getFullYear(), startD.getMonth(), 1); 
+  let endLimit = new Date(endD.getFullYear(), endD.getMonth(), 1);
+
+  let html = '';
+  while (current <= endLimit) {
+    let m = current.getMonth() + 1;
+    let y = current.getFullYear() + 543;
+    let val = `${m}-${y}`;
+    let label = `${THAI_MONTHS_CAL[m]} ${y}`;
+    html += `<option value="${val}">${label}</option>`;
+    
+    current.setMonth(current.getMonth() + 1);
+  }
+  dropdown.innerHTML = html;
+}
+
+// เมื่อผู้ใช้เลือกเดือนจาก Dropdown
+function calSelectMonth(val) {
+  const parts = val.split('-');
+  calMonth = parseInt(parts[0]);
+  calYear = parseInt(parts[1]);
   loadCalendarData();
+}
+
+// แทนที่ฟังก์ชันปุ่มลูกศรเดิม ให้เลื่อนได้เฉพาะเดือนที่มีใน Dropdown
+function calChangeMonth(dir) {
+  const dropdown = document.getElementById('calMonthDropdown');
+  if(!dropdown) return;
+
+  const options = Array.from(dropdown.options);
+  const currentIndex = options.findIndex(opt => opt.value === `${calMonth}-${calYear}`);
+
+  if (currentIndex !== -1) {
+    const nextIndex = currentIndex + dir;
+    if (nextIndex >= 0 && nextIndex < options.length) {
+      const nextVal = options[nextIndex].value;
+      dropdown.value = nextVal;
+      calSelectMonth(nextVal);
+    } else {
+      showToast('สิ้นสุดช่วงเวลาของเทอมนี้แล้ว', 'warning');
+    }
+  }
 }
 
 async function loadCalendarData() {
@@ -1488,8 +1569,8 @@ function toggleCalFilter() {
 
 function renderCalendar() {
   const cls = document.getElementById('calClassroom').value;
-  document.getElementById('calMonthLabel').textContent = `${THAI_MONTHS_CAL[calMonth]} ${calYear}`;
-
+const dropdown = document.getElementById('calMonthDropdown');
+  if(dropdown) dropdown.value = `${calMonth}-${calYear}`;
   const firstDay   = new Date(calYear-543, calMonth-1, 1);
   const daysInMonth= new Date(calYear-543, calMonth, 0).getDate();
   const startDow   = firstDay.getDay();
