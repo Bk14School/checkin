@@ -284,6 +284,11 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
     </a>
     <div class="nav-info">
       <div class="teacher-badge" id="teacherBadge">🎓 ครูสมศรี • ป.3</div>
+      <!-- ⭐️ ตัวเลือกเทอมสำหรับครู (จะแสดงเมื่อล็อกอินแล้ว) -->
+      <select id="globalTermSelector" onchange="changeGlobalTerm(this.value)" class="form-select form-select-sm fw-bold text-primary" style="display:none; width:auto; border:2px solid var(--primary);">
+        <option value="1">เทอม 1</option>
+        <option value="2">เทอม 2</option>
+      </select>
       
       <button class="nav-btn" id="btnNavDash" onclick="openDashboard()"       style="display:none;">📊 สถิติภาพรวม</button>
       <button class="nav-btn" id="btnNav1" onclick="showPage('checkPage')"    style="display:none;">✅ เช็คชื่อ</button>
@@ -642,25 +647,28 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title fw-bold">⚙️ ตั้งค่าระบบ</h5>
+        <h5 class="modal-title fw-bold">⚙️ ตั้งค่าปีการศึกษา</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <label class="form-label fw-semibold">ปีการศึกษา ที่เปิดใช้งาน</label>
-        <input type="text" class="form-control form-control-lg" id="configYearInput" placeholder="เช่น 2569">
+        <input type="number" class="form-control" id="configYearInput" placeholder="เช่น 2569">
         
-        <div class="row mt-3">
-          <div class="col-6">
-            <label class="form-label fw-semibold">วันเริ่มปีการศึกษา</label>
-            <input type="date" class="form-control" id="configStartDate">
-          </div>
-          <div class="col-6">
-            <label class="form-label fw-semibold">วันสิ้นสุดปีการศึกษา</label>
-            <input type="date" class="form-control" id="configEndDate">
+        <div class="p-3 mt-3 rounded" style="background:#f0f9ff; border:1px solid #bae6fd;">
+          <h6 class="fw-bold text-primary">ปฏิทิน เทอม 1</h6>
+          <div class="row g-2">
+            <div class="col-6"><label class="form-label mb-1" style="font-size:0.8rem;">วันเปิดเทอม 1</label><input type="date" class="form-control form-control-sm" id="cfgT1Start"></div>
+            <div class="col-6"><label class="form-label mb-1" style="font-size:0.8rem;">วันปิดเทอม 1</label><input type="date" class="form-control form-control-sm" id="cfgT1End"></div>
           </div>
         </div>
 
-        <small class="text-muted mt-3 d-block">📌 ระบบจะสร้างไฟล์ <b>Attendance_[ปีการศึกษา]</b> ใหม่อัตโนมัติถ้ายังไม่มี</small>
+        <div class="p-3 mt-2 rounded" style="background:#fffbeb; border:1px solid #fde68a;">
+          <h6 class="fw-bold text-warning" style="color:#b45309 !important;">ปฏิทิน เทอม 2</h6>
+          <div class="row g-2">
+            <div class="col-6"><label class="form-label mb-1" style="font-size:0.8rem;">วันเปิดเทอม 2</label><input type="date" class="form-control form-control-sm" id="cfgT2Start"></div>
+            <div class="col-6"><label class="form-label mb-1" style="font-size:0.8rem;">วันปิดเทอม 2</label><input type="date" class="form-control form-control-sm" id="cfgT2End"></div>
+          </div>
+        </div>
       </div>
       <div class="modal-footer border-0">
         <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
@@ -711,7 +719,7 @@ const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyeHnw4zm_EKWBNE-PH
 // State
 // =============================================
 let currentUser = null;        
-let currentYear = "2568";    
+let currentYear = "2569";    
 let currentDate = todayStr();  
 let students =[];             
 let attendance = {};           
@@ -719,11 +727,11 @@ let reportData = null;
 let dashData =[];
 let dashDate = todayStr();
 
-// ⭐️ State สำหรับฟีเจอร์คำนวณวันเรียน
-let termStartDate = "";
-let termEndDate = "";
+// ⭐️ State ปฏิทินและเทอม
+let selectedTerm = 1;
+let termConfig = { t1s: "", t1e: "", t2s: "", t2e: "" };
 let globalHolidays = {};
-let validSchoolDays =[];
+let validSchoolDays =[]; 
 
 // =============================================
 // Utilities
@@ -776,28 +784,74 @@ function showPage(page) {
   window.scrollTo(0,0);
 }
 
-// ⭐️ ฟังก์ชันคำนวณวันเรียนจริง
+function parseDateConfig(dateStr) {
+  if(!dateStr) return null;
+  const parts = dateStr.split('-');
+  return new Date(parts[0], parseInt(parts[1])-1, parts[2]);
+}
+
+// ⭐️ ฟังก์ชันคำนวณวันเรียนจริง (เฉพาะเทอมที่เลือก)
 function calculateSchoolDays() {
   validSchoolDays =[];
-  if (!termStartDate || !termEndDate) return;
+  let startD, endD;
 
-  let current = new Date(termStartDate);
-  let end = new Date(termEndDate);
-  
-  while (current <= end) {
+  if (selectedTerm == 1 && termConfig.t1s && termConfig.t1e) {
+    startD = parseDateConfig(termConfig.t1s); endD = parseDateConfig(termConfig.t1e);
+  } else if (selectedTerm == 2 && termConfig.t2s && termConfig.t2e) {
+    startD = parseDateConfig(termConfig.t2s); endD = parseDateConfig(termConfig.t2e);
+  } else { return; } 
+
+  let current = new Date(startD);
+  while (current <= endD) {
     let dStr = pad(current.getDate()) + '/' + pad(current.getMonth() + 1) + '/' + (current.getFullYear() + 543);
     let dow = current.getDay();
     let hol = globalHolidays[dStr];
-    
     let isHoliday = hol && hol.type === 'holiday';
     let isMakeup = hol && hol.type === 'makeup';
     let isWeekend = (dow === 0 || dow === 6);
     
-    if (!isHoliday && (!isWeekend || isMakeup)) {
-      validSchoolDays.push(dStr);
-    }
+    if (!isHoliday && (!isWeekend || isMakeup)) validSchoolDays.push(dStr);
     current.setDate(current.getDate() + 1);
   }
+}
+
+function changeGlobalTerm(termVal) {
+  selectedTerm = parseInt(termVal);
+  calculateSchoolDays();
+  updateMonthDropdown();
+  
+  document.getElementById('checkClassDisplay').textContent = `ชั้น ${currentUser.isAdmin ? 'ทุกชั้น' : currentUser.classroom} • ปีการศึกษา ${currentYear} (เทอม ${selectedTerm})`;
+  
+  if (document.getElementById('dashboardPage').classList.contains('active')) loadDashboard();
+  else if (document.getElementById('checkPage').classList.contains('active')) loadAttendance();
+  else if (document.getElementById('reportPage').classList.contains('active')) loadAllThenRender();
+  else if (document.getElementById('calendarPage').classList.contains('active')) openCalendarPage(); 
+}
+
+function updateMonthDropdown() {
+  const picker = document.getElementById('hrMonthPicker');
+  const dashPicker = document.getElementById('dashMonthPicker');
+  const THAI_M =['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  let htmlOptions = '';
+
+  let startD = selectedTerm == 1 ? termConfig.t1s : termConfig.t2s;
+  let endD = selectedTerm == 1 ? termConfig.t1e : termConfig.t2e;
+
+  if (startD && endD) {
+    let cur = parseDateConfig(startD);
+    let end = parseDateConfig(endD);
+    cur.setDate(1); end.setDate(1); 
+    while(cur <= end) {
+      let m = pad(cur.getMonth() + 1);
+      htmlOptions += `<option value="${m}">${THAI_M[parseInt(m)]}</option>`;
+      cur.setMonth(cur.getMonth() + 1);
+    }
+  } else {
+    for(let i=1; i<=12; i++) htmlOptions += `<option value="${pad(i)}">${THAI_M[i]}</option>`;
+  }
+  
+  if(picker) picker.innerHTML = htmlOptions;
+  if(dashPicker) dashPicker.innerHTML = htmlOptions;
 }
 
 // =============================================
@@ -810,9 +864,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   showProgress('กำลังโหลดระบบ...');
   try {
     const cfg = await api('getConfig');
-    currentYear = cfg.active_year || '';
-    termStartDate = cfg.term_start || ""; // ⭐️ โหลดวันเปิดเทอม
-    termEndDate = cfg.term_end || "";     // ⭐️ โหลดวันปิดเทอม
+    currentYear = cfg.active_year || '2569';
+    termConfig.t1s = cfg.term1_start || ""; termConfig.t1e = cfg.term1_end || "";
+    termConfig.t2s = cfg.term2_start || ""; termConfig.t2e = cfg.term2_end || "";
 
     const schoolName = cfg.school_name || 'โรงเรียนบ้านคลอง 14';
     document.getElementById('loginYear').textContent = currentYear;
@@ -823,9 +877,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   hideProgress();
 });
 
-// =============================================
-// Login / Navigation Logic
-// =============================================
 async function doLogin() {
   const pw = document.getElementById('loginPass').value.trim();
   if (!pw) { showToast('กรุณากรอกรหัสผ่าน','error'); return; }
@@ -846,12 +897,34 @@ async function doLogin() {
 
 async function afterLogin() {
   document.getElementById('teacherBadge').textContent = `🎓 ${currentUser.name} • ${currentUser.isAdmin ? 'ผู้บริหาร' : currentUser.classroom}`;
-  document.getElementById('teacherBadge').style.display = 'inline-flex';['btnNavDash','btnNav1','btnNav2','btnNav3','btnLogout'].forEach(id => document.getElementById(id).style.display='inline-block');
+  document.getElementById('teacherBadge').style.display = 'inline-flex';
+  document.getElementById('globalTermSelector').style.display = 'inline-block'; 
+  ['btnNavDash','btnNav1','btnNav2','btnNav3','btnLogout'].forEach(id => document.getElementById(id).style.display='inline-block');
   document.getElementById('btnNavConfig').style.display = currentUser.isAdmin ? 'inline-block' : 'none';
   document.getElementById('btnNavLogin').style.display = 'none';
 
   setupReportClassroomSelect();
+
+  const now = new Date();
+  if (termConfig.t2s && termConfig.t2e && now >= parseDateConfig(termConfig.t2s) && now <= parseDateConfig(termConfig.t2e)) {
+    selectedTerm = 2;
+  } else if (termConfig.t1e && termConfig.t2s && now > parseDateConfig(termConfig.t1e) && now < parseDateConfig(termConfig.t2s)) {
+    selectedTerm = 2; 
+  } else {
+    selectedTerm = 1; 
+  }
+  document.getElementById('globalTermSelector').value = selectedTerm;
+
+  try {
+    const hols = await api('getHolidays', { term: currentYear });
+    globalHolidays = {};
+    hols.forEach(h => globalHolidays[h.date] = h);
+    calculateSchoolDays();
+    updateMonthDropdown();
+  } catch(e) {}
+
   showPage('checkPage');
+  updateDateDisplay();
   
   if (!currentYear) {
     if (currentUser.isAdmin) {
@@ -863,23 +936,14 @@ async function afterLogin() {
     hideProgress();
     return;
   }
-
-  // ⭐️ ดึงข้อมูลวันหยุดและคำนวณวันเรียนทันทีที่ล็อกอิน
-  try {
-    const hols = await api('getHolidays', { term: currentYear });
-    globalHolidays = {};
-    hols.forEach(h => globalHolidays[h.date] = h);
-    calculateSchoolDays();
-  } catch(e) {}
-
-  updateDateDisplay();
+  
   await loadAttendance(); 
 }
 
 function logout() {
   currentUser = null; students =[]; attendance = {};
   const safe = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
-  safe('teacherBadge', el => el.style.display='none');['btnNavDash','btnNav1','btnNav2','btnNav3','btnLogout','btnNavConfig','btnNavLogin'].forEach(id => safe(id, el => el.style.display='none'));
+  safe('teacherBadge', el => el.style.display='none');['btnNavDash','btnNav1','btnNav2','btnNav3','btnLogout','btnNavConfig','btnNavLogin','globalTermSelector'].forEach(id => safe(id, el => el.style.display='none'));
   safe('loginPass', el => { el.value=''; });
   showPage('loginPage');
   showToast('ออกจากระบบแล้ว','info');
@@ -1082,15 +1146,22 @@ function printDashboard() {
 // =============================================
 function openConfigModal() {
   document.getElementById('configYearInput').value = currentYear;
-  document.getElementById('configStartDate').value = termStartDate;
-  document.getElementById('configEndDate').value = termEndDate;
+  document.getElementById('cfgT1Start').value = termConfig.t1s;
+  document.getElementById('cfgT1End').value = termConfig.t1e;
+  document.getElementById('cfgT2Start').value = termConfig.t2s;
+  document.getElementById('cfgT2End').value = termConfig.t2e;
   new bootstrap.Modal(document.getElementById('configModal')).show();
 }
 
 async function saveConfig() {
   const val = document.getElementById('configYearInput').value.trim();
-  const sDate = document.getElementById('configStartDate').value;
-  const eDate = document.getElementById('configEndDate').value;
+  const dData = {
+    active_year: val,
+    term1_start: document.getElementById('cfgT1Start').value,
+    term1_end: document.getElementById('cfgT1End').value,
+    term2_start: document.getElementById('cfgT2Start').value,
+    term2_end: document.getElementById('cfgT2End').value
+  };
 
   if (!val) { showToast('กรุณาระบุปีการศึกษา', 'error'); return; }
   
@@ -1098,18 +1169,13 @@ async function saveConfig() {
   showProgress('กำลังบันทึกและสร้างไฟล์ปีการศึกษา...');
   try {
     await api('setupTerm', { term: val });
-    await api('updateConfig', { active_year: val, term_start: sDate, term_end: eDate });
+    await api('updateConfig', dData);
     currentYear = val;
-    termStartDate = sDate;
-    termEndDate = eDate;
-    calculateSchoolDays(); // คำนวณวันใหม่
-    
-    updateDateDisplay();
+    termConfig.t1s = dData.term1_start; termConfig.t1e = dData.term1_end;
+    termConfig.t2s = dData.term2_start; termConfig.t2e = dData.term2_end;
+    calculateSchoolDays(); updateMonthDropdown(); updateDateDisplay();
     showToast('✅ บันทึกการตั้งค่าสำเร็จ', 'success');
-    await loadAttendance();
-  } catch(e) {
-    showToast(e.message, 'error');
-  }
+  } catch(e) { showToast(e.message, 'error'); }
   hideProgress();
 }
 
@@ -1118,20 +1184,19 @@ async function saveConfig() {
 // =============================================
 function updateDateDisplay() {
   document.getElementById('checkDateDisplay').textContent = thaiDateFull(currentDate);
-  document.getElementById('checkClassDisplay').textContent = `ชั้น ${currentUser.isAdmin ? 'ทุกชั้น' : currentUser.classroom} • ปีการศึกษา ${currentYear}`;
+  document.getElementById('checkClassDisplay').textContent = `ชั้น ${currentUser.isAdmin ? 'ทุกชั้น' : currentUser.classroom} • ปีการศึกษา ${currentYear} (เทอม ${selectedTerm})`;
   document.getElementById('datePickerInput').value = dateToInput(currentDate);
   
-  // ⭐️ แสดงจำนวนวันเรียน
   const countDisplay = document.getElementById('schoolDayCountDisplay');
   if (validSchoolDays.length > 0) {
     let dayIndex = validSchoolDays.indexOf(currentDate);
     if (dayIndex >= 0) {
-      countDisplay.textContent = `📊 วันเรียนที่ ${dayIndex + 1} จากทั้งหมด ${validSchoolDays.length} วัน`;
+      countDisplay.textContent = `📊 วันเรียนที่ ${dayIndex + 1} จากทั้งหมด ${validSchoolDays.length} วัน (เทอม ${selectedTerm})`;
     } else {
-      countDisplay.textContent = `🚫 วันนี้ไม่อยู่ในวันเปิดเรียนปกติ`;
+      countDisplay.textContent = `🚫 วันนี้ไม่อยู่ในวันเรียนปกติของ เทอม ${selectedTerm}`;
     }
   } else {
-    countDisplay.textContent = `(ยังไม่ได้กำหนดวันเปิด-ปิดปีการศึกษา)`;
+    countDisplay.textContent = `(ยังไม่ได้กำหนดวันเปิด-ปิดเทอม)`;
   }
 }
 
@@ -1196,8 +1261,8 @@ async function loadDayAttendance_() {
 function renderStudents(filter='') {
   const grid = document.getElementById('studentGrid');
   
-  // ⭐️ กรองเอาเฉพาะเด็กที่สถานะไม่ใช่ 'ย้ายออก' มาให้เช็คชื่อ
-  const activeStudents = students.filter(s => s.status !== 'ย้ายออก');
+  // ⭐️ กรองเอาเฉพาะเด็กที่สถานะไม่ใช่ 'ย้ายออก' และ 'พักการเรียน'
+  const activeStudents = students.filter(s => s.status === 'ปกติ' || s.status === 'ย้ายเข้า');
   const list = filter ? activeStudents.filter(s => s.name.includes(filter)) : activeStudents;
 
   if (list.length === 0) {
@@ -1212,7 +1277,7 @@ function renderStudents(filter='') {
       <div class="sticky-name-wrap">
         <div class="student-num">${i+1}</div>
         <div>
-          <div class="student-name">${s.name}</div>
+          <div class="student-name">${s.name} ${s.status === 'ย้ายเข้า' ? '<span class="badge bg-warning text-dark ms-1" style="font-size:0.6rem;">ย้ายเข้า</span>' : ''}</div>
           <div class="student-id-sm">รหัส: ${s.studentId}${s.classroom && currentUser.isAdmin ? ' • '+s.classroom:''}</div>
         </div>
       </div>
@@ -1251,8 +1316,10 @@ function openManageStatusModal() {
       <td>${s.name}</td>
       <td>
         <select class="form-select form-select-sm" id="statusSel_${s.studentId}">
-          <option value="ปกติ" ${s.status!=='ย้ายออก'?'selected':''}>ปกติ</option>
+          <option value="ปกติ" ${s.status==='ปกติ'?'selected':''}>ปกติ</option>
+          <option value="ย้ายเข้า" ${s.status==='ย้ายเข้า'?'selected':''}>ย้ายเข้า</option>
           <option value="ย้ายออก" ${s.status==='ย้ายออก'?'selected':''}>ย้ายออก</option>
+          <option value="พักการเรียน" ${s.status==='พักการเรียน'?'selected':''}>พักการเรียน</option>
         </select>
       </td>
       <td>
@@ -1284,22 +1351,21 @@ function setStatus(studentId, status) {
   card.querySelectorAll('.status-btn').forEach(btn => btn.classList.remove('active'));
   const map = {'ม':'btn-present','ข':'btn-absent','ล':'btn-leave','ส':'btn-late','ป':'btn-sick'};
   card.querySelector('.' + map[status])?.classList.add('active');
-  updateCounters(students.filter(s => s.status !== 'ย้ายออก'));
+  updateCounters(students.filter(s => s.status === 'ปกติ' || s.status === 'ย้ายเข้า'));
 }
 
 function setAll(status) {
-  students.filter(s => s.status !== 'ย้ายออก').forEach(s => { attendance[s.studentId] = status; });
+  students.filter(s => s.status === 'ปกติ' || s.status === 'ย้ายเข้า').forEach(s => { attendance[s.studentId] = status; });
   renderStudents(document.getElementById('studentSearch').value);
 }
 
 function filterStudents(q) { renderStudents(q); }
 
 async function saveAttendance() {
-  const activeStudents = students.filter(s => s.status !== 'ย้ายออก');
+  const activeStudents = students.filter(s => s.status === 'ปกติ' || s.status === 'ย้ายเข้า');
   if (!currentUser || activeStudents.length === 0) { showToast('ไม่มีข้อมูลนักเรียนให้เช็ค','error'); return; }
   if (currentUser.isAdmin) { showToast('ผู้บริหารไม่สามารถบันทึกการเช็คชื่อได้โดยตรง','error'); return; }
 
-  // ⭐️ ส่งบันทึกเฉพาะเด็กที่ยัง Active
   const records = activeStudents.map(s => ({ studentId: s.studentId, status: attendance[s.studentId] || '-' }));
   const empty = records.filter(r => r.status === '-').length;
   if (empty > 0) {
@@ -1404,12 +1470,17 @@ function renderFiltered() {
   } else if (period === 'term') {
     filteredDates = reportAllData.dates; 
   }
+  
+  // ⭐️ กรองวันที่ให้อยู่ในเทอมที่เลือก (ถ้าเป็นการดูรายเทอม)
+  if (period === 'term' && validSchoolDays.length > 0) {
+     filteredDates = filteredDates.filter(d => validSchoolDays.includes(d));
+  }
+
   reportData = { students: reportAllData.students, dates: filteredDates, attendance: reportAllData.attendance };
-  buildMonthButtons(reportAllData.dates);
+  buildMonthButtons(filteredDates);
   renderReport(reportData);
 }
 
-// ⭐️ ฟังก์ชันคำนวณสถิติที่ปรับแก้แล้ว (นับเฉพาะวันที่มีรายชื่อ)
 function calcStats(students, dates, attendance) {
   let totalP=0,totalA=0,totalL=0,totalLa=0;
   const perDay = {}; dates.forEach(d => { perDay[d]={p:0,total:0}; });
@@ -1422,7 +1493,7 @@ function calcStats(students, dates, attendance) {
     
     dates.forEach(d => {
       const v = att[d]||'-';
-      if(['ม','ข','ล','ป','ส'].includes(v)) activeDays++; // ⭐️ นับเฉพาะวันที่มีชื่ออยู่
+      if(['ม','ข','ล','ป','ส'].includes(v)) activeDays++; 
 
       if(v==='ม'){p++;perDay[d].p++;perDay[d].total++;}
       else if(v==='ข'){a++;perDay[d].total++;}
@@ -1430,7 +1501,7 @@ function calcStats(students, dates, attendance) {
       else if(v==='ส'){la++;perDay[d].total++;}
     });
     totalP+=p; totalA+=a; totalL+=l; totalLa+=la;
-    s.activeDays = activeDays; // ⭐️ เก็บไว้ใช้ตอนแสดง % ของแต่ละคน
+    s.activeDays = activeDays; 
     if(a >= threshold) alerts.push({name:s.name,absent:a,total:activeDays});
   });
   return {totalP,totalA,totalL,totalLa,perDay,alerts,threshold};
@@ -1456,10 +1527,9 @@ function renderReport(data) {
 
   const stats = calcStats(students, dates, attendance);
 
-  // คำนวณ % สำหรับสถิติรวมด้านบน
-  const totalDays = dates.length;
-  const totalSlots = students.length * totalDays || 1;
-  const kpiPct = val => totalSlots ? Math.round(val/totalSlots*100) : 0; 
+  let realTotalSlots = 0;
+  students.forEach(s => realTotalSlots += (s.activeDays || 0));
+  const kpiPct = val => realTotalSlots ? Math.round(val/realTotalSlots*100) : 0; 
 
   kpiRow.style.display='flex';
   kpiRow.innerHTML = `
@@ -1527,14 +1597,16 @@ function renderReport(data) {
       return `<td><span class="s-${v}">${v}</span></td>`;
     }).join('');
     
-    // ⭐️ เปอร์เซ็นต์รายคน ให้คำนวณจาก activeDays ของเด็กแต่ละคน
     const studentPct = s.activeDays ? Math.round(p / s.activeDays * 100) : 0;
     const rowAlert = a >= threshold ? 'style="background:#fff5f5;"' : '';
+    let statusBadge = '';
+    if (s.status === 'ย้ายออก') statusBadge = '<span style="color:#ef4444;font-size:0.75rem;">(ย้ายออก)</span>';
+    else if (s.status === 'พักการเรียน') statusBadge = '<span style="color:#f59e0b;font-size:0.75rem;">(พักเรียน)</span>';
     
     return `<tr ${rowAlert}>
       <td class="text-center text-muted" style="position:sticky; left:0; z-index:6; background:inherit; border-right:1px solid var(--border);">${i+1}</td>
       <td class="name-col" style="left:36px; background:inherit; border-right:2px solid #e2e8f0; z-index:6;">
-        ${s.name} ${s.status === 'ย้ายออก' ? '<span style="color:#ef4444;font-size:0.75rem;">(ย้ายออก)</span>' : ''} ${a>=threshold?' <span class="badge-alert-sm">⚠️</span>':''}
+        ${s.name} ${statusBadge} ${a>=threshold?' <span class="badge-alert-sm">⚠️</span>':''}
       </td>
       ${cells}
       <td style="font-weight:700;color:var(--success);">${p}</td>
@@ -1551,27 +1623,265 @@ function renderReport(data) {
 }
 
 // =============================================
+// Export CSV & Excel
+// =============================================
+function exportReportCSV() {
+  if (!reportData||!reportData.students.length){showToast('ไม่มีข้อมูล','error');return;}
+  const {students,dates,attendance} = reportData;
+  const cls = document.getElementById('rptClassroom').value;
+  let csv = '\uFEFF#,ชื่อ-นามสกุล,' + dates.join(',') + ',มา,ขาด,ลา/ป่วย,สาย,%มาเรียน\n';
+  students.forEach((s,i) => {
+    const att = attendance[s.studentId]||{};
+    let p=0,a=0,l=0,la=0;
+    const cells = dates.map(d=>{const v=att[d]||'-';if(v==='ม')p++;else if(v==='ข')a++;else if(v==='ล' || v==='ป')l++;else if(v==='ส')la++;return v;});
+    const pct = s.activeDays?Math.round(p/s.activeDays*100):0;
+    csv += `${i+1},${s.name},${cells.join(',')},${p},${a},${l},${la},${pct}%\n`;
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  a.download = `รายงาน_${cls}_${currentYear}.csv`;
+  a.click();
+  showToast('Export CSV สำเร็จ','success');
+}
+
+function exportReportExcel() {
+  if (!reportData||!reportData.students.length){showToast('ไม่มีข้อมูล','error');return;}
+  if (typeof XLSX === 'undefined'){showToast('กำลังโหลด XLSX...','info');return;}
+  const {students,dates,attendance} = reportData;
+  const cls = document.getElementById('rptClassroom').value;
+
+  const header = ['#','ชื่อ-นามสกุล',...dates,'มา','ขาด','ลา/ป่วย','สาย','%มาเรียน'];
+  const rows = students.map((s,i)=>{
+    const att=attendance[s.studentId]||{};
+    let p=0,a=0,l=0,la=0;
+    const cells=dates.map(d=>{const v=att[d]||'-';if(v==='ม')p++;else if(v==='ข')a++;else if(v==='ล' || v==='ป')l++;else if(v==='ส')la++;return v;});
+    const pct = s.activeDays?Math.round(p/s.activeDays*100):0;
+    return [i+1,s.name,...cells,p,a,l,la,pct+'%'];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([header,...rows]);
+  ws['!cols'] =[{wch:4},{wch:28},...dates.map(()=>({wch:8})),{wch:5},{wch:5},{wch:6},{wch:5},{wch:7}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, cls);
+  XLSX.writeFile(wb, `รายงาน_${cls}_${currentYear}.xlsx`);
+  showToast('Export Excel สำเร็จ','success');
+}
+
+// =============================================
+// Print PDF
+// =============================================
+function printReport() {
+  if (!reportData||!reportData.students.length){showToast('ไม่มีข้อมูล','error');return;}
+  const {students,dates,attendance} = reportData;
+  const cls      = document.getElementById('rptClassroom').value;
+  const period   = document.getElementById('rptPeriod').value;
+  const school   = document.getElementById('loginSchoolName')?.textContent || 'โรงเรียนบ้านคลอง 14';
+  const threshold= parseInt(document.getElementById('rptThreshold').value)||3;
+
+  const THAI_MONTHS =['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+  function statusBg(v){return v==='ม'?'#d1fae5':v==='ข'?'#fee2e2':v==='ล'?'#fef3c7':v==='ป'?'#fdf2f8':v==='ส'?'#e0e7ff':'#f8fafc';}
+  function statusFg(v){return v==='ม'?'#065f46':v==='ข'?'#991b1b':v==='ล'?'#92400e':v==='ป'?'#be185d':v==='ส'?'#3730a3':'#9ca3af';}
+
+  const printDate = new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+
+  if (period === 'term') {
+    const monthMap = {}; 
+    dates.forEach(d => {
+      const p = d.split('/');
+      const key = p[1]+'/'+p[2];
+      if(!monthMap[key]) monthMap[key]=[];
+      monthMap[key].push(d);
+    });
+    const monthKeys = Object.keys(monthMap).sort((a,b)=>{
+      const[ma,ya]=a.split('/'); const [mb,yb]=b.split('/');
+      return (parseInt(ya)*100+parseInt(ma))-(parseInt(yb)*100+parseInt(mb));
+    });
+
+    let grandP=0,grandA=0,grandL=0,grandLa=0;
+
+    const headerCols = monthKeys.map(mk=>{
+      const [mm]=mk.split('/');
+      return `<th colspan="4" style="background:#0ea5e9;color:#fff;text-align:center;font-size:10px;padding:4px 2px;">${THAI_MONTHS[parseInt(mm)]}</th>`;
+    }).join('') + '<th colspan="4" style="background:#1e3a5f;color:#fff;">รวมทั้งเทอม</th><th style="background:#374151;color:#fff;">%มา</th>';
+
+    const subHeader = monthKeys.map(()=>
+      '<th style="background:#e0f2fe;color:#0369a1;font-size:9px;padding:2px;">มา</th><th style="background:#fee2e2;color:#991b1b;font-size:9px;padding:2px;">ขาด</th><th style="background:#fef3c7;color:#92400e;font-size:9px;padding:2px;">ลา/ป่วย</th><th style="background:#e0e7ff;color:#3730a3;font-size:9px;padding:2px;">สาย</th>'
+    ).join('') + '<th style="background:#d1fae5;color:#065f46;font-size:9px;">มา</th><th style="background:#fee2e2;color:#991b1b;font-size:9px;">ขาด</th><th style="background:#fef3c7;color:#92400e;font-size:9px;">ลา/ป่วย</th><th style="background:#e0e7ff;color:#3730a3;font-size:9px;">สาย</th><th></th>';
+
+    const bodyRows = students.map((s,i)=>{
+      const att = attendance[s.studentId]||{};
+      let tp=0,ta=0,tl=0,tla=0;
+      const cells = monthKeys.map(mk=>{
+        const mDates = monthMap[mk];
+        let p=0,a=0,l=0,la=0;
+        mDates.forEach(d=>{const v=att[d]||'-';if(v==='ม')p++;else if(v==='ข')a++;else if(v==='ล' || v==='ป')l++;else if(v==='ส')la++;});
+        tp+=p;ta+=a;tl+=l;tla+=la;
+        return `<td style="text-align:center;font-size:10px;color:#065f46;">${p||'-'}</td>
+                <td style="text-align:center;font-size:10px;color:${a?'#991b1b':'#9ca3af'};">${a||'-'}</td>
+                <td style="text-align:center;font-size:10px;color:${l?'#92400e':'#9ca3af'};">${l||'-'}</td>
+                <td style="text-align:center;font-size:10px;color:${la?'#3730a3':'#9ca3af'};">${la||'-'}</td>`;
+      }).join('');
+      grandP+=tp;grandA+=ta;grandL+=tl;grandLa+=tla;
+      const totalDays = s.activeDays || 1;
+      const pct = totalDays ? Math.round(tp/totalDays*100) : 0;
+      const rowBg = ta>=threshold?'#fff5f5':'';
+      return `<tr style="background:${rowBg};">
+        <td style="text-align:center;color:#9ca3af;font-size:10px;">${i+1}</td>
+        <td style="font-size:11px;white-space:nowrap;">${s.name}${ta>=threshold?' ⚠️':''}</td>
+        ${cells}
+        <td style="text-align:center;font-weight:700;font-size:10px;color:#065f46;">${tp}</td>
+        <td style="text-align:center;font-weight:700;font-size:10px;color:#991b1b;">${ta}</td>
+        <td style="text-align:center;font-weight:700;font-size:10px;color:#92400e;">${tl}</td>
+        <td style="text-align:center;font-weight:700;font-size:10px;color:#3730a3;">${tla}</td>
+        <td style="text-align:center;font-weight:700;font-size:11px;color:${pct<80?'#991b1b':'#065f46'};">${pct}%</td>
+      </tr>`;
+    }).join('');
+
+    const html = buildPrintPage({
+      school, cls, currentYear, printDate, threshold,
+      title: `สรุปการเข้าเรียน เทอม ${selectedTerm}`,
+      subTitle: `ปีการศึกษา ${currentYear} | ชั้น ${cls}`,
+      orientation: 'landscape',
+      tableHead: `<tr><th style="width:24px;">#</th><th style="min-width:130px;">ชื่อ-นามสกุล</th>${headerCols}</tr>
+                  <tr><th></th><th></th>${subHeader}</tr>`,
+      tableBody: bodyRows,
+      summary: `นักเรียน <b>${students.length}</b> คน &nbsp;|&nbsp; รวมมา <b>${grandP}</b> &nbsp; ขาด <b>${grandA}</b> &nbsp; ลา/ป่วย <b>${grandL}</b> &nbsp; สาย <b>${grandLa}</b>`,
+      alertNote: ''
+    });
+    openPrint(html);
+    return;
+  }
+
+  // โหมด รายเดือน
+  let totalP=0,totalA=0,totalL=0,totalLa=0;
+  const alerts=[];
+
+  const bodyRows = students.map((s,i)=>{
+    const att=attendance[s.studentId]||{};
+    let p=0,a=0,l=0,la=0;
+    const cells=dates.map(d=>{
+      const v=att[d]||'-';
+      if(v==='ม')p++;else if(v==='ข')a++;else if(v==='ล' || v==='ป')l++;else if(v==='ส')la++;
+      return `<td style="background:${statusBg(v)};color:${statusFg(v)};text-align:center;font-weight:600;font-size:9px;padding:2px 1px;">${v}</td>`;
+    }).join('');
+    totalP+=p;totalA+=a;totalL+=l;totalLa+=la;
+    if(a>=threshold) alerts.push(s.name);
+    const pct = s.activeDays?Math.round(p/s.activeDays*100):0;
+    return `<tr style="background:${a>=threshold?'#fff5f5':''};">
+      <td style="text-align:center;color:#9ca3af;font-size:10px;">${i+1}</td>
+      <td style="font-size:11px;">${s.name}${a>=threshold?' ⚠️':''}</td>
+      ${cells}
+      <td style="text-align:center;font-weight:700;font-size:10px;color:#065f46;">${p}</td>
+      <td style="text-align:center;font-weight:700;font-size:10px;color:#991b1b;">${a}</td>
+      <td style="text-align:center;font-weight:700;font-size:10px;color:#92400e;">${l}</td>
+      <td style="text-align:center;font-weight:700;font-size:10px;color:#3730a3;">${la}</td>
+      <td style="text-align:center;font-weight:700;font-size:11px;color:${pct<80?'#991b1b':'#065f46'};">${pct}%</td>
+    </tr>`;
+  }).join('');
+
+  const monthGroups={};
+  dates.forEach(d=>{const p=d.split('/');const mk=p[1]+'/'+p[2];if(!monthGroups[mk])monthGroups[mk]=[];monthGroups[mk].push(d);});
+  const monthHeaderRow = Object.entries(monthGroups).map(([mk,ds])=>{
+    const mm=mk.split('/')[0];
+    return `<th colspan="${ds.length}" style="background:#1e3a5f;color:#fff;text-align:center;font-size:9px;padding:3px;">${THAI_MONTHS[parseInt(mm)]}</th>`;
+  }).join('');
+  const dayHeaderRow = dates.map(d=>`<th style="background:#0ea5e9;color:#fff;font-size:8px;padding:2px 1px;min-width:16px;width:16px;">${d.substring(0,2)}</th>`).join('');
+
+  const _TM =['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const _mSet = {};
+  dates.forEach(d=>{const p=d.split('/');_mSet[p[1]+'/'+p[2]]=_TM[parseInt(p[1])]+' '+p[2];});
+  const _monthLabel = Object.values(_mSet).join(', ') || 'ทั้งหมด';
+
+  const html = buildPrintPage({
+    school, cls, currentYear, printDate, threshold,
+    title: `สรุปการเข้าเรียน | ${_monthLabel}`,
+    subTitle: `ปีการศึกษา ${currentYear} (เทอม ${selectedTerm}) | ชั้น ${cls} | ${dates.length} วันเรียน`,
+    orientation: 'landscape',
+    tableHead: `<tr>
+      <th rowspan="2" style="width:24px;">#</th>
+      <th rowspan="2" style="min-width:130px;">ชื่อ-นามสกุล</th>
+      ${monthHeaderRow}
+      <th colspan="4" style="background:#374151;color:#fff;">รวม</th>
+      <th rowspan="2" style="background:#374151;color:#fff;">%มา</th>
+    </tr>
+    <tr>
+      ${dayHeaderRow}
+      <th style="background:#d1fae5;color:#065f46;font-size:9px;">ม</th>
+      <th style="background:#fee2e2;color:#991b1b;font-size:9px;">ข</th>
+      <th style="background:#fef3c7;color:#92400e;font-size:9px;">ล/ป</th>
+      <th style="background:#e0e7ff;color:#3730a3;font-size:9px;">ส</th>
+    </tr>`,
+    tableBody: bodyRows,
+    summary: `มา <b>${totalP}</b> &nbsp; ขาด <b>${totalA}</b> &nbsp; ลา/ป่วย <b>${totalL}</b> &nbsp; สาย <b>${totalLa}</b> &nbsp;|&nbsp; นักเรียน <b>${students.length}</b> คน`,
+    alertNote: alerts.length ? `⚠️ ขาดเกิน ${threshold} วัน: ${alerts.join(', ')}` : ''
+  });
+  openPrint(html);
+}
+
+function buildPrintPage({school,cls,currentYear,printDate,title,subTitle,orientation,tableHead,tableBody,summary,alertNote,extraContent=''}) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>${title} ${cls}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
+    @page { size: A4 ${orientation}; margin: 10mm 8mm; }
+    * { box-sizing: border-box; }
+    body { font-family:'Sarabun',sans-serif; font-size:11px; margin:0; padding:0; color:#111; }
+    .print-header { display:flex; align-items:center; justify-content:space-between; border-bottom:2px solid #1e3a5f; padding-bottom:8px; margin-bottom:10px; }
+    .print-header .school { font-size:15px; font-weight:700; color:#1e3a5f; }
+    .print-header .sub    { font-size:11px; color:#555; margin-top:2px; }
+    .print-header .stamp  { text-align:right; font-size:10px; color:#888; }
+    .print-title { text-align:center; font-size:13px; font-weight:700; margin-bottom:8px; color:#1e3a5f; }
+    table { width:100%; border-collapse:collapse; table-layout:auto; }
+    th,td { border:1px solid #e2e8f0; padding:4px 5px; }
+    th    { font-size:10px; font-weight:600; }
+    td    { font-size:11px; vertical-align:middle; }
+    tbody tr:nth-child(even) { background:#fafafa; }
+    .print-summary { margin-top:8px; font-size:10px; color:#555; border-top:1px solid #e2e8f0; padding-top:6px; }
+    .print-alert   { margin-top:6px; font-size:10px; color:#991b1b; }
+    .sign-row      { display:flex; justify-content:space-around; margin-top:30px; }
+    .sign-box      { text-align:center; font-size:11px; }
+    .sign-line     { border-bottom:1px solid #666; width:160px; margin:0 auto 4px; padding-top:24px; }
+    @media print { body{-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
+  </style></head><body>
+  <div class="print-header">
+    <div><div class="school">${school}</div><div class="sub">${subTitle}</div></div>
+    <div class="stamp">พิมพ์วันที่ ${printDate}</div>
+  </div>
+  <div class="print-title">${title}</div>
+  
+  <div style="font-size:13px; font-weight:700; color:#1e3a5f; margin-bottom:6px;">🏫 สรุปสถิติภาพรวมแยกตามระดับชั้น</div>
+  <table><thead>${tableHead}</thead><tbody>${tableBody}</tbody></table>
+  
+  ${extraContent} 
+  
+  <div class="print-summary">${summary}</div>
+  ${alertNote ? `<div class="print-alert">${alertNote}</div>` : ''}
+  <div class="sign-row">
+    <div class="sign-box"><div class="sign-line"></div>ผู้รายงาน</div>
+    <div class="sign-box"><div class="sign-line"></div>ผู้อำนวยการโรงเรียน</div>
+  </div>
+  <script>window.onload=()=>window.print();<\/script>
+  </body></html>`;
+}
+
+// =============================================
 // Calendar Page logic
 // =============================================
-let calYear  = 0;
-let calMonth = 0;
-let calStudents  =[];
-let calDayData   = {};    
-let calHolidays  = {};    
-let calEditDate  = '';
-let calEditAtt   = {};
-let calModalInst = null;
-let calHolModalInst = null;
-let calHolEditDate  = '';
-let calDayNotes    = {};   
-
-const THAI_MONTHS_CAL =['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-const DAY_NAMES =['อา','จ','อ','พ','พฤ','ศ','ส'];
-
 function openCalendarPage() {
   const now = new Date();
-  calYear  = now.getFullYear() + 543; 
-  calMonth = now.getMonth() + 1;
+  let startStr = selectedTerm == 1 ? termConfig.t1s : termConfig.t2s;
+  
+  if (startStr) {
+    const d = parseDateConfig(startStr);
+    calYear = d.getFullYear() + 543;
+    calMonth = d.getMonth() + 1;
+  } else {
+    calYear  = now.getFullYear() + 543; 
+    calMonth = now.getMonth() + 1;
+  }
+
   setupCalClassroomSelect();
   showPage('calendarPage');
   loadCalendarData();
@@ -1583,9 +1893,8 @@ function setupCalClassroomSelect() {
   else { sel.innerHTML = `<option value="${currentUser.classroom}">${currentUser.classroom}</option>`; }
 }
 
-// ⭐️ จำกัดการเลื่อนเดือนในปฏิทินไม่ให้ออกนอกเทอม
 function calChangeMonth(dir) {
-  if (!termStartDate || !termEndDate) {
+  if (!termConfig.t1s || !termConfig.t2s) {
     calMonth += dir;
     if (calMonth > 12) { calMonth = 1;  calYear++; }
     if (calMonth < 1)  { calMonth = 12; calYear--; }
@@ -1593,14 +1902,15 @@ function calChangeMonth(dir) {
     let currentD = new Date(calYear - 543, calMonth - 1, 1);
     currentD.setMonth(currentD.getMonth() + dir);
     
-    let startD = new Date(termStartDate); startD.setDate(1); 
-    let endD = new Date(termEndDate); endD.setDate(1);
+    let startD = selectedTerm == 1 ? parseDateConfig(termConfig.t1s) : parseDateConfig(termConfig.t2s);
+    let endD = selectedTerm == 1 ? parseDateConfig(termConfig.t1e) : parseDateConfig(termConfig.t2e);
+    startD.setDate(1); endD.setDate(1);
     
     if (currentD >= startD && currentD <= endD) {
       calMonth = currentD.getMonth() + 1;
       calYear = currentD.getFullYear() + 543;
     } else {
-      showToast('สิ้นสุดช่วงเวลาเปิด-ปิดปีการศึกษาแล้ว', 'warning');
+      showToast(`สิ้นสุดช่วงเวลาเปิด-ปิด เทอม ${selectedTerm} แล้ว`, 'warning');
       return;
     }
   }
@@ -1752,9 +2062,11 @@ function renderCalendar() {
       cellContent=`<div class="cal-no-data">ยังไม่เช็ค</div>`;
     }
 
-     const holBtn = `<button class="cal-holiday-btn" onclick="event.stopPropagation();openHolidayModal('${dateStr}')" title="วันหยุด/ชดเชย">⚙️</button>`;
-    const canEdit = !isHoliday && (!isWeekend || isMakeup);
-    const clickable = canEdit ? `onclick="openCalDay('${dateStr}')"` : `onclick="showToast('วันนี้เป็นวันหยุด ไม่สามารถบันทึกได้', 'error')"`;
+    const holBtn = `<button class="cal-holiday-btn" onclick="event.stopPropagation();openHolidayModal('${dateStr}')" title="วันหยุด/ชดเชย">⚙️</button>`;
+    const canEdit = !isHoliday && (!isWeekend || isMakeup) && validSchoolDays.includes(dateStr);
+    
+    // ตรวจสอบว่าอยู่ใน validSchoolDays ของเทอมที่เลือกหรือไม่
+    const clickable = canEdit ? `onclick="openCalDay('${dateStr}')"` : `onclick="showToast('ไม่สามารถบันทึกได้ (อาจเป็นวันหยุด หรือไม่อยู่ในเทอมที่เลือก)', 'error')"`;
 
     const cellClass =['cal-cell',
       isToday ? 'today' : '',
@@ -1762,7 +2074,8 @@ function renderCalendar() {
       hasData && !isHoliday ? 'has-data' : '',
       isHoliday ? 'holiday' : '',
       isMakeup ? 'makeup' : '',
-      hasStreak ? 'streak3' : ''
+      hasStreak ? 'streak3' : '',
+      !validSchoolDays.includes(dateStr) ? 'empty' : '' // ลางๆ ถ้าไม่อยู่ในเทอม
     ].filter(Boolean).join(' ');
 
     html += `<div class="${cellClass}" ${clickable}>
@@ -1839,14 +2152,14 @@ function openCalDay(dateStr) {
 }
 
 function renderCalDayStudents() {
-  const activeCalList = calStudents.filter(s => s.status !== 'ย้ายออก'); // ไม่เอาเด็กย้ายออกมาให้เช็คย้อนหลังในหน้าปฏิทิน
+  const activeCalList = calStudents.filter(s => s.status !== 'ย้ายออก'); 
   const checked = activeCalList.filter(s => calEditAtt[s.studentId]).length;
   document.getElementById('calDayChecked').textContent = `เช็คแล้ว ${checked}/${activeCalList.length} คน`;
 
   document.getElementById('calDayStudents').innerHTML = activeCalList.map((s,i) => {
     const st = calEditAtt[s.studentId]||'';
     const map = {'ม':'present','ข':'absent','ล':'leave','ป':'sick','ส':'late'};
-    const btns = ['ม','ข','ล','ป','ส'].map(v =>
+    const btns =['ม','ข','ล','ป','ส'].map(v =>
       `<button class="status-btn btn-${map[v]||'present'} ${st===v?'active':''}" onclick="calSetStatus('${s.studentId}','${v}',this)">${v}</button>`
     ).join('');
     return `<div class="cal-stu-row" id="calrow-${s.studentId}">
@@ -1872,7 +2185,6 @@ function calSetAll(status) {
 
 async function calSaveDay() {
   const cls = document.getElementById('calClassroom').value;
-  // บันทึกรวมถึงคนที่ย้ายออกแล้วแต่เคยมีประวัติ
   const records = calStudents.map(s => ({ studentId: s.studentId, status: calEditAtt[s.studentId] || '-' }));
 
   showProgress('กำลังบันทึก...');
@@ -1903,10 +2215,186 @@ function clearCalNote() {
   renderCalendar(); showToast('ล้างหมายเหตุเรียบร้อย', 'info');
 }
 
+function toggleStudentPanel() {
+  const panel = document.getElementById('calStudentPanel');
+  const isVisible = panel.style.display==='block';
+  panel.style.display = isVisible?'none':'block';
+  document.getElementById('btnStudentPanel').textContent = isVisible?'🔍 ดูรายคน':'✕ ปิด';
+  if (!isVisible) renderStudentTimeline();
+}
+
+function renderStudentTimeline() {
+  const panel = document.getElementById('calStudentTimeline');
+  if (!panel || document.getElementById('calStudentPanel').style.display!=='block') return;
+
+  const q = (document.getElementById('calStudentSearch').value||'').toLowerCase();
+  const filtered = q ? calStudents.filter(s=>s.name.toLowerCase().includes(q)||s.studentId.includes(q)) : calStudents;
+
+  if (!filtered.length) { panel.innerHTML='<div class="text-muted" style="font-size:.85rem;">ไม่พบนักเรียน</div>'; return; }
+
+  const daysInMonth = new Date(calYear-543, calMonth, 0).getDate();
+  const allDates =[];
+  for (let d=1; d<=daysInMonth; d++) allDates.push(pad(d)+'/'+pad(calMonth)+'/'+calYear);
+
+  const schoolDates = allDates.filter(ds=> validSchoolDays.includes(ds) );
+
+  const colorsMap = {'ม':'#22c55e','ข':'#ef4444','ล':'#f59e0b','ป':'#be185d','ส':'#818cf8','':''};
+  const bgMap     = {'ม':'#d1fae5','ข':'#fee2e2','ล':'#fef3c7','ป':'#fdf2f8','ส':'#e0e7ff','':'#f1f5f9'};
+  const streakMap = calcStreakMap();
+
+  panel.innerHTML = filtered.map(s => {
+    let p=0,a=0,total=0;
+    let maxStreak=0, curStreak=0;
+
+    const dots = schoolDates.map(ds => {
+      const v = (calDayData[ds]||{})[s.studentId]||'';
+      if(['ม','ข','ล','ป','ส'].includes(v)){
+        total++;
+        if(v==='ม') p++;
+        if(v==='ข') { a++; curStreak++; maxStreak=Math.max(maxStreak,curStreak); } else { curStreak=0; }
+      } else { curStreak=0; }
+      
+      const bg  = bgMap[v]||'#f8fafc';
+      const clr = colorsMap[v]||'#9ca3af';
+      const ring = streakMap[ds]&&v==='ข'?' outline:2px solid #ef4444;':' ';
+      const opacity = (v && !currentFilters[v]) ? 'opacity: 0.2;' : 'opacity: 1;';
+
+      return `<div class="cal-stu-day-dot" style="background:${bg};color:${clr};${ring}${opacity}" title="${ds}: ${v||'ยังไม่เช็ค'}" onclick="openCalDay('${ds}')">${v||'?'}</div>`;
+    }).join('');
+
+    const pct  = total?Math.round(p/total*100):0;
+    const pctColor = pct<80?'#dc2626':'#16a34a';
+    
+    let warningAction = '';
+    if (maxStreak >= 3 || (total > 0 && pct < 80)) {
+      const reason = maxStreak >= 3 ? `ขาด ${maxStreak} วันติด` : `เวลาเรียน ${pct}%`;
+      warningAction = `<span style="font-size:.7rem;background:#fee2e2;color:#991b1b;border-radius:8px;padding:1px 6px;margin-left:6px;">⚠️ ${reason}</span>
+                       <button class="btn-print-warn ms-2" onclick="printWarningLetter('${s.studentId}')">🖨️ พิมพ์ใบเตือน</button>`;
+    }
+
+    return `<div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="font-size:.88rem;font-weight:600;">${s.name} ${s.status==='ย้ายออก'?'<span style="color:#ef4444;font-size:0.7rem;">(ย้ายออก)</span>':''}</span>
+        <span style="font-size:.75rem;color:${pctColor};font-weight:700;">${pct}%</span>
+        <span style="font-size:.75rem;color:#94a3b8;">มา ${p} / ขาด ${a}</span>
+        ${warningAction}
+      </div>
+      <div class="cal-stu-timeline">${dots}</div>
+    </div>`;
+  }).join('');
+
+  const streakStudents = filtered.filter(s => {
+    let run=0, max=0;
+    for(let ds of schoolDates){
+      const v=(calDayData[ds]||{})[s.studentId]||'';
+      if(v==='ข'){run++;max=Math.max(max,run);}else run=0;
+    }
+    return max>=3;
+  });
+  document.getElementById('calStuStreak').textContent = streakStudents.length ? `⚠️ ขาดติดต่อกัน ≥3 วัน: ${streakStudents.map(s=>s.name).join(', ')}` : '';
+}
+
 // =============================================
 // Export & Print logic
 // =============================================
-// ฟังก์ชันนี้จะกรองปฏิทินรายเดือนให้เหลือแค่วันเรียน
+function printCalMonth() {
+  if (!calStudents.length) { showToast('ยังไม่มีข้อมูล กรุณาโหลดปฏิทินก่อน','error'); return; }
+
+  const cls      = document.getElementById('calClassroom').value;
+  const school   = document.getElementById('loginSchoolName')?.textContent || 'โรงเรียนบ้านคลอง 14';
+  const printDate= new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+  const THAI_M   =['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const DOW_TH   =['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+  const daysInMonth = new Date(calYear-543, calMonth, 0).getDate();
+  const schoolDates = validSchoolDays.filter(ds => ds.split('/')[1] === pad(calMonth) && ds.split('/')[2] == calYear);
+
+  const threshold = 3;
+  let totalP=0,totalA=0,totalL=0,totalLa=0;
+  const alertNames=[];
+
+  const bodyRows = calStudents.map((s,i)=>{
+    const att = {};
+    schoolDates.forEach(ds=>{ att[ds]=(calDayData[ds]||{})[s.studentId]||''; });
+    let p=0,a=0,l=0,la=0, totalDays=0;
+
+    const cells = schoolDates.map(ds=>{
+      const v=att[ds]||'-';
+      if(['ม','ข','ล','ป','ส'].includes(v)) {
+        totalDays++;
+        if(v==='ม')p++;else if(v==='ข')a++;else if(v==='ล' || v==='ป')l++;else if(v==='ส')la++;
+      }
+      const bg=v==='ม'?'#d1fae5':v==='ข'?'#fee2e2':v==='ล'?'#fef3c7':v==='ป'?'#fdf2f8':v==='ส'?'#e0e7ff':'#f8fafc';
+      const fg=v==='ม'?'#065f46':v==='ข'?'#991b1b':v==='ล'?'#92400e':v==='ป'?'#be185d':v==='ส'?'#3730a3':'#9ca3af';
+      return `<td style="background:${bg};color:${fg};text-align:center;font-weight:600;font-size:8px;padding:2px 1px;">${v}</td>`;
+    }).join('');
+
+    totalP+=p;totalA+=a;totalL+=l;totalLa+=la;
+    if(a>=threshold) alertNames.push(s.name);
+    const pct=totalDays?Math.round(p/totalDays*100):0;
+
+    return `<tr style="background:${a>=threshold?'#fff5f5':''};">
+      <td style="text-align:center;font-size:9px;color:#9ca3af;">${i+1}</td>
+      <td style="font-size:10px;white-space:nowrap;">${s.name}${s.status==='ย้ายออก'?' (ย้ายออก)':''}${a>=threshold?' ⚠️':''}</td>
+      ${cells}
+      <td style="text-align:center;font-weight:700;font-size:9px;color:#065f46;">${p}</td>
+      <td style="text-align:center;font-weight:700;font-size:9px;color:#991b1b;">${a}</td>
+      <td style="text-align:center;font-weight:700;font-size:9px;color:#92400e;">${l}</td>
+      <td style="text-align:center;font-weight:700;font-size:9px;color:#3730a3;">${la}</td>
+      <td style="text-align:center;font-weight:700;font-size:10px;color:${pct<80?'#991b1b':'#065f46'};">${pct}%</td>
+    </tr>`;
+  }).join('');
+
+  const dateHeaders = schoolDates.map(ds=>{
+    const p=ds.split('/');
+    const dow=new Date(parseInt(p[2])-543,parseInt(p[1])-1,parseInt(p[0])).getDay();
+    return `<th style="background:#0ea5e9;color:#fff;font-size:8px;padding:2px 1px;min-width:15px;width:15px;text-align:center;">
+      <div>${parseInt(p[0])}</div><div style="opacity:.8;">${DOW_TH[dow]}</div>
+    </th>`;
+  }).join('');
+
+  const holList = Object.entries(calHolidays)
+    .filter(([,h])=>h.type==='holiday'&&h.date?.split('/')?.[1]===String(calMonth).padStart(2,'0'))
+    .map(([ds,h])=>`${parseInt(ds.split('/')[0])} ${h.note||'หยุดพิเศษ'}`).join(' • ');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>รายงาน ${cls} ${THAI_M[calMonth]} ${calYear}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
+    @page { size: A4 landscape; margin: 8mm; } *{box-sizing:border-box;} body{font-family:'Sarabun',sans-serif;font-size:11px;margin:0;padding:0;}
+    .hdr{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1e3a5f;padding-bottom:6px;margin-bottom:8px;}
+    .hdr-school{font-size:14px;font-weight:700;color:#1e3a5f;} .hdr-sub{font-size:11px;color:#555;margin-top:2px;} .hdr-stamp{font-size:10px;color:#888;text-align:right;}
+    .title{text-align:center;font-size:13px;font-weight:700;margin-bottom:6px;color:#1e3a5f;}
+    table{width:100%;border-collapse:collapse;} th,td{border:1px solid #e2e8f0;padding:2px 3px;}
+    td:nth-child(2){white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;}
+    .summary{margin-top:7px;font-size:10px;color:#555;border-top:1px solid #e2e8f0;padding-top:5px;}
+    .hol-note{margin-top:4px;font-size:9px;color:#92400e;} .sign-row{display:flex;justify-content:space-around;margin-top:16px;}
+    .sign-box{text-align:center;font-size:10px;} .sign-line{border-bottom:1px solid #666;width:150px;margin:0 auto 3px;padding-top:22px;}
+    @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+  </style></head><body>
+  <div class="hdr">
+    <div><div class="hdr-school">${school}</div><div class="hdr-sub">ชั้น ${cls} | ${THAI_M[calMonth]} ${calYear} | ปีการศึกษา ${currentYear} (เทอม ${selectedTerm})</div></div>
+    <div class="hdr-stamp">พิมพ์วันที่ ${printDate}</div>
+  </div>
+  <div class="title">สรุปการเข้าเรียนประจำเดือน ${THAI_M[calMonth]} ${calYear}</div>
+  <table>
+    <thead><tr><th rowspan="2" style="width:22px;background:#1e3a5f;color:#fff;">#</th><th rowspan="2" style="min-width:120px;background:#1e3a5f;color:#fff;">ชื่อ-นามสกุล</th>
+        ${dateHeaders}<th style="background:#065f46;color:#fff;font-size:9px;">มา</th><th style="background:#991b1b;color:#fff;font-size:9px;">ขาด</th>
+        <th style="background:#92400e;color:#fff;font-size:9px;">ลา/ป่วย</th><th style="background:#3730a3;color:#fff;font-size:9px;">สาย</th><th style="background:#374151;color:#fff;font-size:9px;">%มา</th>
+      </tr></thead>
+    <tbody>${bodyRows}</tbody>
+  </table>
+  <div class="summary">
+    รวม: มา <b>${totalP}</b> | ขาด <b>${totalA}</b> | ลา/ป่วย <b>${totalL}</b> | สาย <b>${totalLa}</b> &nbsp;|&nbsp;
+    นักเรียน <b>${calStudents.length}</b> คน | วันเรียน <b>${schoolDates.length}</b> วัน
+    ${alertNames.length?` &nbsp;|&nbsp; ⚠️ ขาดเกิน ${threshold} วัน: <b>${alertNames.join(', ')}</b>`:''}
+  </div>
+  ${holList?`<div class="hol-note">🚫 วันหยุด: ${holList}</div>`:''}
+  <div class="sign-row"><div class="sign-box"><div class="sign-line"></div>ครูผู้สอน / ครูประจำชั้น</div><div class="sign-box"><div class="sign-line"></div>หัวหน้าฝ่ายวิชาการ</div><div class="sign-box"><div class="sign-line"></div>ผู้อำนวยการโรงเรียน</div></div>
+  <script>window.onload=()=>window.print();<\/script></body></html>`;
+  openPrint(html);
+}
+
 function printCalStudent() {
   if (!calStudents.length) { showToast('ยังไม่มีข้อมูล กรุณาโหลดปฏิทินก่อน','error'); return; }
 
@@ -1916,7 +2404,6 @@ function printCalStudent() {
   const THAI_M    =['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
   const DOW_TH    =['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 
-  // ⭐️ ดึงมาเฉพาะ "วันเรียนจริง" ของเดือนที่กำลังดูอยู่ 
   const schoolDates = validSchoolDays.filter(ds => ds.split('/')[1] === pad(calMonth) && ds.split('/')[2] == calYear);
   const totalSchoolDays = schoolDates.length;
 
@@ -1951,7 +2438,7 @@ function printCalStudent() {
       tableRows += `<tr>${makeCell(col1[i])}<td style="width:8px;border:none;background:#f0f9ff;"></td>${makeCell(col2[i])}</tr>`;
     }
 
-    const activeTotalDays = p+a+l+la; // ใช้จำนวนวันที่บันทึกไปแล้วสำหรับเปอร์เซ็นต์
+    const activeTotalDays = p+a+l+la; 
     const pct = activeTotalDays ? Math.round(p/activeTotalDays*100) : 0; 
     const pctColor = pct>=80?'#065f46':pct>=60?'#92400e':'#991b1b';
     const pctBg    = pct>=80?'#d1fae5':pct>=60?'#fef3c7':'#fee2e2';
@@ -1987,16 +2474,12 @@ function printCalStudent() {
         <div class="kpi absent"><div class="kpi-num">${a}</div><div class="kpi-label">❌ ขาดเรียน</div></div>
         <div class="kpi leave"><div class="kpi-num">${l}</div><div class="kpi-label">📋 ลา/ป่วย</div></div>
         <div class="kpi late"><div class="kpi-num">${la}</div><div class="kpi-label">⏰ มาสาย</div></div>
-        <div class="kpi total"><div class="kpi-num">${totalSchoolDays}</div><div class="kpi-label">📅 วันเรียน/เดือน</div></div>
+        <div class="kpi total"><div class="kpi-num">${activeTotalDays}</div><div class="kpi-label">📅 วันที่ถูกประเมิน</div></div>
       </div>
       <div class="day-section-title">บันทึกการเข้าเรียนเฉพาะวันเรียน (${THAI_M[calMonth]} ${calYear} — วันเรียน ${totalSchoolDays} วัน)</div>
       <table class="pair-table">
         <thead>
-          <tr>
-            <th colspan="3" style="background:#0ea5e9;color:#fff;text-align:center;">ครึ่งแรก</th>
-            <th style="background:#f0f9ff;border:none;width:8px;"></th>
-            <th colspan="3" style="background:#0ea5e9;color:#fff;text-align:center;">ครึ่งหลัง</th>
-          </tr>
+          <tr><th colspan="3" style="background:#0ea5e9;color:#fff;text-align:center;">ครึ่งแรก</th><th style="background:#f0f9ff;border:none;width:8px;"></th><th colspan="3" style="background:#0ea5e9;color:#fff;text-align:center;">ครึ่งหลัง</th></tr>
           <tr><th>วัน</th><th>สถานะ</th><th>หมายเหตุ</th><th style="background:#f0f9ff;border:none;"></th><th>วัน</th><th>สถานะ</th><th>หมายเหตุ</th></tr>
         </thead>
         <tbody>${tableRows}</tbody>
@@ -2028,39 +2511,6 @@ function printCalStudent() {
   openPrint(html);
 }
 
-// ⭐️ สร้างรายการ Dropdown ของเดือน ให้สอดคล้องกับที่ตั้งค่าไว้
-async function updateMonthDropdown() {
-  const picker = document.getElementById('hrMonthPicker');
-  const dashPicker = document.getElementById('dashMonthPicker');
-  const THAI_M =['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-  let htmlOptions = '';
-
-  if (termStartDate && termEndDate) {
-    let cur = new Date(termStartDate);
-    let end = new Date(termEndDate);
-    cur.setDate(1); end.setDate(1);
-    
-    while(cur <= end) {
-      let m = pad(cur.getMonth() + 1);
-      htmlOptions += `<option value="${m}">${THAI_M[parseInt(m)]}</option>`;
-      cur.setMonth(cur.getMonth() + 1);
-    }
-  } else {
-    for(let i=1; i<=12; i++) htmlOptions += `<option value="${pad(i)}">${THAI_M[i]}</option>`;
-  }
-  
-  if(picker) picker.innerHTML = htmlOptions;
-  if(dashPicker) dashPicker.innerHTML = htmlOptions;
-}
-
-function openPrint(html) {
-  const w = window.open('','_blank');
-  if (!w) { showToast('กรุณาอนุญาต Popup ในเบราว์เซอร์ก่อนทำการพิมพ์','error'); return; }
-  w.document.write(html); w.document.close();
-}
-// =============================================
-// ⭐️ พิมพ์ใบแจ้งเตือน (รองรับระบบวันเปิด-ปิดเทอม)
-// =============================================
 function printWarningLetter(studentId) {
   const student = calStudents.find(s => s.studentId === studentId);
   if (!student) return;
@@ -2074,12 +2524,10 @@ function printWarningLetter(studentId) {
   let totalDays = 0;
   let presentDays = 0;
 
-  // ดึงเฉพาะ "วันเรียนจริง" ของเดือนนี้
   const schoolDatesInMonth = validSchoolDays.filter(ds => ds.split('/')[1] === pad(calMonth) && ds.split('/')[2] == calYear);
 
   for (let ds of schoolDatesInMonth) {
     const v = (calDayData[ds]||{})[studentId]||'';
-    // คำนวณ % เฉพาะวันที่มีการเช็คชื่อ
     if (['ม','ข','ล','ป','ส'].includes(v)) {
       totalDays++;
       if (v === 'ม') presentDays++;
@@ -2133,11 +2581,8 @@ function printWarningLetter(studentId) {
   openPrint(html);
 }
 
-// =============================================
-// ⭐️ พิมพ์รายงานเช็คชื่อประจำวัน (ซ่อนเด็กย้ายออก)
-// =============================================
 function printDailyAttendanceProfessional() {
-  const activeStudents = students.filter(s => s.status !== 'ย้ายออก');
+  const activeStudents = students.filter(s => s.status === 'ปกติ' || s.status === 'ย้ายเข้า');
   if (!activeStudents || activeStudents.length === 0) { showToast('ไม่มีข้อมูลนักเรียน หรือย้ายออกทั้งหมด', 'error'); return; }
 
   const school = document.getElementById('navSchoolName')?.textContent || 'โรงเรียนบ้านคลอง 14';
@@ -2204,7 +2649,7 @@ function printDailyAttendanceProfessional() {
   <div class="page" id="reportCapture">
     <div class="header">
       <div class="header-left"><div class="logo">14</div><div><div class="school-name">${school}</div><div class="school-sub">รายงานสรุปการเช็คชื่อนักเรียนประจำวัน</div></div></div>
-      <div class="header-right">วันที่พิมพ์ ${printDate}<br>ปีการศึกษา ${term}</div>
+      <div class="header-right">วันที่พิมพ์ ${printDate}<br>ปีการศึกษา ${term} (เทอม ${selectedTerm})</div>
     </div>
     <div class="doc-title">รายงานการมาเรียนประจำวัน</div><div class="doc-subtitle">${thaiDateFull(currentDate)}</div>
     <div class="meta-wrap"><div class="meta-item"><b>ชั้นเรียน:</b> ${cls}</div><div class="meta-item"><b>ครูผู้บันทึก:</b> ${teacher}</div><div class="meta-item"><b>วันที่เช็คชื่อ:</b> ${thaiDateFull(currentDate)}</div><div class="meta-item"><b>สถานะรวม:</b> ${summaryText}</div></div>
@@ -2243,7 +2688,7 @@ function printDailyAttendanceProfessional() {
 }
 
 // ==============================================
-// ⭐️ ระบบ Homeroom (บันทึก + พิมพ์) 
+// ระบบ Homeroom (บันทึก + พิมพ์) 
 // ==============================================
 async function openHomeroomModal() {
   document.getElementById('hrInfoLabel').textContent = `วันที่: ${currentDate} | ชั้นเรียน: ${currentUser.classroom}`;
@@ -2306,8 +2751,7 @@ async function printDailyHomeroomReport() {
     const school = document.getElementById('navSchoolName')?.textContent || 'โรงเรียนบ้านคลอง 14';
     let abs =[], lea = [], sic =[];
     
-    // ซ่อนเด็กย้ายออกไม่ให้ขึ้นในลิสต์ขาดโฮมรูม
-    const activeList = students.filter(s => s.status !== 'ย้ายออก');
+    const activeList = students.filter(s => s.status !== 'ย้ายออก' && s.status !== 'พักการเรียน');
     activeList.forEach(s => {
       if(attendance[s.studentId] === 'ข') abs.push(s.name);
       else if(attendance[s.studentId] === 'ล') lea.push(s.name);
@@ -2367,8 +2811,7 @@ async function printMonthlyHomeroomReport(month) {
       let abs =[];
       reportData.students.forEach(s => {
         const st = reportData.attendance[s.studentId][dateStr];
-        // ซ่อนเด็กย้ายออกไม่ให้ขึ้นในรายงานโฮมรูม
-        if (s.status !== 'ย้ายออก' && (st === 'ข' || st === 'ล' || st === 'ป')) abs.push(`${s.name} (${st})`);
+        if (s.status !== 'ย้ายออก' && s.status !== 'พักการเรียน' && (st === 'ข' || st === 'ล' || st === 'ป')) abs.push(`${s.name} (${st})`);
       });
 
       const dayLog = logMap[dateStr];
