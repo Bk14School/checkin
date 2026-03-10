@@ -2058,7 +2058,11 @@ async function printMonthlyHomeroomReport(month, year) {
     const reportData = await api('getReport', { year: year, classroom: cls, month: String(month).padStart(2,'0') });
     const logs = await api('getHomeroomLogs', { year: year, classroom: cls });
     
-    // ตรงนี้สำคัญ: ถ้า reportData ไม่มี dates หรือไม่มีนักเรียน
+    // --- เพิ่มส่วนที่ขาดไปตรงนี้ ---
+    const logMap = {}; 
+    logs.forEach(l => logMap[l.date] = l);
+    // ----------------------------
+    
     if (!reportData || (!reportData.dates || reportData.dates.length === 0)) { 
         showToast('เดือนนี้ยังไม่มีข้อมูลการเช็คชื่อ', 'warning'); 
         hideProgress(); 
@@ -2074,16 +2078,24 @@ async function printMonthlyHomeroomReport(month, year) {
     sortedDates.forEach((dateStr, idx) => {
       let abs =[]; 
       reportData.students.forEach(s => { 
-        const st = reportData.attendance[s.studentId][dateStr]; 
+        // เช็คว่ามีข้อมูลนักเรียนคนนี้ในวันที่นั้นหรือไม่ก่อน
+        const attData = reportData.attendance[s.studentId];
+        const st = attData ? attData[dateStr] : null; 
         if (['ข','ล','ป'].includes(st)) abs.push(`${s.name} (${st})`); 
       });
+      
       const dayLog = logMap[dateStr];
+      const topics = dayLog ? dayLog.topics.replace(/,/g, '<br>- ') : '-';
+      const note = dayLog ? dayLog.note : '-';
+      const absText = abs.length ? abs.join('<br>') : '<span style="color:#166534;">มาครบ</span>';
+
       rows += `<tr>
         <td style="text-align:center;">${idx+1}</td>
         <td style="text-align:center;">${dateStr.substring(0,5)}</td>
-        <td>${dayLog?dayLog.topics.replace(/,/g,'<br>- '):'-'}</td>
-        <td style="color:#991b1b;font-size:11px;">${abs.length?abs.join('<br>'):'<span style="color:#166534;">มาครบ</span>'}</td>
-        <td>${dayLog?dayLog.note:'-'}</td><td></td>
+        <td>${topics !== '-' ? '- '+topics : '-'}</td>
+        <td style="color:#991b1b;font-size:11px;">${absText}</td>
+        <td>${note}</td>
+        <td></td>
       </tr>`;
     });
 
@@ -2096,10 +2108,15 @@ async function printMonthlyHomeroomReport(month, year) {
       <table><thead><tr><th width="40">ที่</th><th width="60">ว/ด/ป</th><th width="300">หัวข้อที่อบรม</th><th width="200">นักเรียนที่ ข/ล/ป</th><th width="200">หมายเหตุ</th><th width="80">ลายมือชื่อ</th></tr></thead><tbody>${rows}</tbody></table>
       <script>window.onload=()=>window.print();<\/script></body></html>`;
     openPrint(html);
-  } catch(e) { showToast(e.message, 'error'); }
+  } catch(e) { 
+    showToast('เกิดข้อผิดพลาด: ' + e.message, 'error'); 
+    console.error(e);
+  }
   hideProgress();
 }
-function printWarningLetter(studentId) {
+  
+  
+  function printWarningLetter(studentId) {
   const student = calStudents.find(s => s.studentId === studentId);
   if (!student) return;
   const cls = document.getElementById('calClassroom').value;
