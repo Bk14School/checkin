@@ -2116,11 +2116,7 @@ function printWarningLetter(studentId) {
   openPrint(html);
 }
 
-async function updateMonthDropdown() {
-  const picker = document.getElementById('hrMonthPicker');
-  const months = await api('getMonthsForTerm', { term: currentYear });
-  picker.innerHTML = months.map(m => `<option value="${m}">${THAI_MONTHS_CAL[parseInt(m)]}</option>`).join('');
-}
+
 </script>
 </body>
 </html>
