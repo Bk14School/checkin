@@ -1993,23 +1993,23 @@ async function saveHomeroom() {
   hideProgress();
 }
 
+// 3. เปิดหน้าต่างเลือกพิมพ์ (แก้ไขให้ดึงข้อมูลจากปฏิทินโดยตรง ไม่ต้องเรียกฟังก์ชันที่ลบทิ้งไปแล้ว)
 function openPrintHomeroomModal() {
   const targetDate = calEditDate || todayStr();
   
-  // นำค่าเดือนและปีปัจจุบันจากปฏิทินมาตั้งค่าเริ่มต้นใน Dropdown
-  const currentMonthVal = `${calMonth}-${calYear}`;
+  // 1. ดึง <select> จากปฏิทินมาทำสำเนาข้อมูล (Copy)
+  const calDropdown = document.getElementById('calMonthDropdown');
+  const hrPicker = document.getElementById('hrMonthPicker');
   
-  // เรียกใช้ตัวสร้าง Dropdown ชุดเดียวกับปฏิทิน
-  const picker = document.getElementById('hrMonthPicker');
-  picker.innerHTML = document.getElementById('calMonthDropdown').innerHTML; // ดึงตัวเลือกจากปฏิทินมาเลย
-  picker.value = `${calMonth}-${calYear}`; // เลือกเดือนปัจจุบันที่เปิดอยู่
+  // 2. เอาข้อมูลจากปฏิทินมาใส่ในหน้าต่างพิมพ์โฮมรูม
+  hrPicker.innerHTML = calDropdown.innerHTML;
+  hrPicker.value = calDropdown.value; // เลือกเดือนที่ปฏิทินเลือกไว้อยู่
   
   document.getElementById('lblPrintHrDate').textContent = targetDate;
 
   calModalInst?.hide();
   new bootstrap.Modal(document.getElementById('printHomeroomModal')).show();
 }
-
 function printHomeroomChoice(mode) {
   bootstrap.Modal.getInstance(document.getElementById('printHomeroomModal')).hide();
   
