@@ -2011,20 +2011,21 @@ function openPrintHomeroomModal() {
   calModalInst?.hide();
   new bootstrap.Modal(document.getElementById('printHomeroomModal')).show();
 }
-function printHomeroomChoice(mode) {
-  bootstrap.Modal.getInstance(document.getElementById('printHomeroomModal')).hide();
-  
+
+  function printHomeroomChoice(mode) {
+  const modalEl = document.getElementById('printHomeroomModal');
+  const modal = bootstrap.Modal.getInstance(modalEl);
+  if (modal) modal.hide();
+
   if (mode === 'daily') {
     printDailyHomeroomReport();
   } else {
-    // แก้ไขตรงนี้: แยกค่าให้ชัดเจน
-    const val = document.getElementById('hrMonthPicker').value; // ค่าที่ได้คือ "3-2569"
-    const [month, year] = val.split('-');
-    console.log("กำลังพิมพ์เดือน:", month, "ปี:", year); // ให้เช็คที่ Console (F12) ว่าเลขออกไหม
-    printMonthlyHomeroomReport(month, year);
+    const val = document.getElementById('hrMonthPicker').value;
+    const [month, displayYear] = val.split('-');
+    printMonthlyHomeroomReport(month, displayYear);
   }
 }
-
+  
 async function printDailyHomeroomReport() {
   const targetDate = calEditDate || todayStr();
   const cls = document.getElementById('calClassroom').value || currentUser.classroom;
