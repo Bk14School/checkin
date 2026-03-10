@@ -1220,11 +1220,16 @@ async function loadAttendance() {
   showProgress('กำลังโหลดข้อมูล...');
   try {
     const cls = currentUser.isAdmin ? '*' : currentUser.classroom;
+    
+    // ⭐️ ตรวจสอบบรรทัดนี้: ต้องส่ง Object ที่มี year และ classroom ครบ
     students = await api('getStudents', { year: currentYear, classroom: cls });
+    
     await loadDayAttendance_();
-  } catch(e) { showToast(e.message, 'error'); hideProgress(); }
+  } catch(e) { 
+    showToast(e.message, 'error'); 
+    hideProgress(); 
+  }
 }
-
 async function loadDayAttendance_() {
   const cls = currentUser.isAdmin ? '*' : currentUser.classroom;
   try {
