@@ -2056,70 +2056,140 @@ async function printDailyHomeroomReport() {
 
 
 // แก้ไขฟังก์ชัน printMonthlyHomeroomReport ให้ดึง logMap จาก global หรือดึงใหม่ถ้าจำเป็น
-async function printMonthlyHomeroomReport(month, year) {
+async function printMonthlyHomeroomReport(month, displayYear) {
   showProgress('กำลังดึงข้อมูล...');
   try {
     const cls = document.getElementById('calClassroom').value || currentUser.classroom;
-    const reportData = await api('getReport', { year: year, classroom: cls, month: String(month).padStart(2,'0') });
-    const logs = await api('getHomeroomLogs', { year: year, classroom: cls });
-    
-    const logMap = {}; 
-    if (logs && Array.isArray(logs)) {
-        logs.forEach(l => logMap[l.date] = l);
-    }
-    
+    const mm = String(month).padStart(2, '0');
+
+    // ใช้ currentYear = ปีการศึกษา ของระบบ
+    const reportData = await api('getReport', {
+      year: currentYear,
+      classroom: cls,
+      month: mm
+    });
+
+    const logs = await api('getHomeroomLogs', {
+      year: currentYear,
+      classroom: cls
+    });
+
+    const logMap = {};
+    (logs || []).forEach(l => {
+      if (l.date && l.date.split('/')[1] === mm) {
+        logMap[l.date] = l;
+      }
+    });
+
     if (!reportData || !reportData.dates || reportData.dates.length === 0) {
-        showToast('ไม่พบข้อมูลการเช็คชื่อในเดือนนี้', 'warning');
-        hideProgress(); return; 
+      hideProgress();
+      showToast('ไม่พบข้อมูลการเช็คชื่อในเดือนนี้', 'warning');
+      return;
     }
 
-    const sortedDates = reportData.dates.sort((a,b)=>{
-        const da=a.split('/'); const db=b.split('/');
-        return (da[2]*10000+da[1]*100+da[0])-(db[2]*10000+db[1]*100+db[0]);
-    });
+    const sortedDates = reportData.dates
+      .filter(d => d.split('/')[1] === mm)
+      .sort((a, b) => {
+        const da = a.split('/');
+        const db = b.split('/');
+        return new Date(da[2] - 543, da[1] - 1, da[0]) - new Date(db[2] - 543, db[1] - 1, db[0]);
+      });
+
+    if (sortedDates.length === 0) {
+      hideProgress();
+      showToast('ไม่พบข้อมูลในเดือนที่เลือก', 'warning');
+      return;
+    }
 
     let rows = '';
     sortedDates.forEach((dateStr, idx) => {
       let abs = [];
-      reportData.students.forEach(s => { 
-        const attData = reportData.attendance[s.studentId];
-        const st = attData ? attData[dateStr] : null; 
-        if (['ข','ล','ป'].includes(st)) abs.push(`${s.name} (${st})`); 
+
+      reportData.students.forEach(s => {
+        const st = (reportData.attendance?.[s.studentId] || {})[dateStr];
+        if (['ข', 'ล', 'ป'].includes(st)) {
+          abs.push(`${s.name} (${st})`);
+        }
       });
 
       const dayLog = logMap[dateStr];
-      const topics = dayLog && dayLog.topics ? dayLog.topics.replace(/,/g, '<br>- ') : '-';
-      const note = dayLog && dayLog.note ? dayLog.note : '-';
+      const topics = dayLog?.topics
+        ? dayLog.topics.split(',').map(t => t.trim()).filter(Boolean)
+        : [];
+      const note = dayLog?.note || '-';
       const absText = abs.length ? abs.join('<br>') : '<span style="color:#166534;">มาครบ</span>';
 
-      rows += `<tr>
-        <td style="text-align:center;">${idx+1}</td>
-        <td style="text-align:center;">${dateStr.substring(0,5)}</td>
-        <td>${topics !== '-' ? '- '+topics : '-'}</td>
-        <td style="color:#991b1b;font-size:11px;">${absText}</td>
-        <td>${note}</td>
-      </tr>`;
+      rows += `
+        <tr>
+          <td style="text-align:center;">${idx + 1}</td>
+          <td style="text-align:center;">${dateStr}</td>
+          <td>${topics.length ? topics.map(t => `- ${t}`).join('<br>') : '-'}</td>
+          <td style="color:#991b1b;font-size:11px;">${absText}</td>
+          <td>${note}</td>
+          <td></td>
+        </tr>
+      `;
     });
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>สมุดโฮมรูม</title>
-    <style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');
-    @page{size:A4 landscape; margin:15mm;} body{font-family:'Sarabun',sans-serif; font-size:13px;}
-    table{width:100%; border-collapse:collapse; margin-top:10px;} th,td{border:1px solid #000; padding:6px; vertical-align:top;}
-    th{background:#e2e8f0; text-align:center;} .head{text-align:center; margin-bottom:15px;}</style></head><body>
-      <div class="head"><h2>บันทึกการจัดกิจกรรมโฮมรูม (Homeroom) รายเดือน</h2>
-        <h3>${document.getElementById('navSchoolName')?.textContent || 'โรงเรียน'}</h3>
-        <p><b>ชั้นเรียน:</b> ${cls} | <b>เดือน:</b> ${THAI_MONTHS_CAL[parseInt(month)]} ${year} | <b>ครู:</b> ${currentUser.name}</p>
-      </div>
-      <table><thead><tr><th width="40">ที่</th><th width="60">ว/ด/ป</th><th width="300">หัวข้อที่อบรม</th><th width="200">นักเรียนที่ ข/ล/ป</th><th width="200">หมายเหตุ</th></tr></thead><tbody>${rows}</tbody></table>
-      <script>window.onload=function(){ window.print(); };<\/script></body></html>`;
+    const schoolName = document.getElementById('navSchoolName')?.textContent || 'โรงเรียน';
+    const monthName = THAI_MONTHS_CAL[parseInt(month)];
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>สมุดโฮมรูม ${cls} ${monthName} ${displayYear}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');
+@page { size:A4 landscape; margin:15mm; }
+body { font-family:'Sarabun',sans-serif; font-size:13px; color:#111; }
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+th, td { border:1px solid #000; padding:6px; vertical-align:top; }
+th { background:#e2e8f0; text-align:center; }
+.head { text-align:center; margin-bottom:15px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <h2>บันทึกการจัดกิจกรรมโฮมรูม (Homeroom) รายเดือน</h2>
+    <h3>${schoolName}</h3>
+    <p>
+      <b>ชั้นเรียน:</b> ${cls}
+      | <b>เดือน:</b> ${monthName} ${displayYear}
+      | <b>ปีการศึกษา:</b> ${currentYear}
+      | <b>ครู:</b> ${currentUser.name}
+    </p>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th width="40">ที่</th>
+        <th width="95">วันที่</th>
+        <th width="320">หัวข้อที่อบรม</th>
+        <th width="220">นักเรียนที่ ข/ล/ป</th>
+        <th width="220">หมายเหตุ</th>
+        <th width="90">ลายมือชื่อ</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+    </tbody>
+  </table>
+
+  <script>
+    window.onload = function() { window.print(); };
+  <\/script>
+</body>
+</html>`;
+
     openPrint(html);
-  } catch(e) { 
-    console.error(e);
-    showToast('เกิดข้อผิดพลาด: ' + e.message, 'error'); 
+  } catch (e) {
+    console.error('พิมพ์โฮมรูม Error:', e);
+    showToast('เกิดข้อผิดพลาดในการสร้างรายงาน: ' + e.message, 'error');
   }
   hideProgress();
-}  
-
+}
   // ฟังก์ชันเรียกจากปุ่มใน Modal
 function handleMonthlyPrint() {
     const picker = document.getElementById('hrMonthPicker');
