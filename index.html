@@ -541,11 +541,12 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
       <div class="modal-body text-center py-4">
         <p class="text-muted mb-4">กรุณาเลือกรูปแบบรายงานที่ต้องการพิมพ์</p>
         <div class="d-grid gap-3">
-          <button class="btn btn-outline-warning btn-lg fw-bold text-dark" onclick="printHomeroomChoice('daily')">📄 พิมพ์ของวันนี้<br><span style="font-size:0.8rem; font-weight:normal;">(เฉพาะวันที่ <span id="lblPrintHrDate"></span>)</span></button>
+          <button class="btn btn-outline-warning btn-lg fw-bold text-dark" onclick="printDailyHomeroomReport()">📄 พิมพ์ของวันนี้<br><span style="font-size:0.8rem; font-weight:normal;">(เฉพาะวันที่ <span id="lblPrintHrDate"></span>)</span></button>
           <div class="d-flex gap-2 align-items-stretch mt-3">
-<select id="hrMonthPicker" class="form-select fw-bold" style="border-color:#f59e0b;">
-    <!-- ตัวเลือกจะถูกสร้างด้วย JS -->
-</select>            <button class="btn btn-warning flex-grow-1 fw-bold text-dark" onclick="printHomeroomChoice('monthly')">📊 พิมพ์สรุปทั้งเดือน</button></div>
+            <select id="hrMonthPicker" class="form-select fw-bold" style="border-color:#f59e0b;"></select>
+            <!-- แก้ไขตรงนี้: เพิ่มการดึงค่าจาก select ลงในฟังก์ชัน -->
+            <button class="btn btn-warning flex-grow-1 fw-bold text-dark" onclick="handleMonthlyPrint()">📊 พิมพ์สรุปทั้งเดือน</button>
+          </div>
         </div>
       </div>
     </div>
@@ -2051,25 +2052,24 @@ async function printDailyHomeroomReport() {
   hideProgress();
 }
 
+
+
+// แก้ไขฟังก์ชัน printMonthlyHomeroomReport ให้ดึง logMap จาก global หรือดึงใหม่ถ้าจำเป็น
 async function printMonthlyHomeroomReport(month, year) {
   showProgress('กำลังดึงข้อมูล...');
   try {
     const cls = document.getElementById('calClassroom').value || currentUser.classroom;
-    // ดึงรายงานและ logs
     const reportData = await api('getReport', { year: year, classroom: cls, month: String(month).padStart(2,'0') });
     const logs = await api('getHomeroomLogs', { year: year, classroom: cls });
     
-    // สร้าง logMap อย่างปลอดภัย
     const logMap = {}; 
     if (logs && Array.isArray(logs)) {
         logs.forEach(l => logMap[l.date] = l);
     }
     
-    // ตรวจสอบโครงสร้างข้อมูล reportData
     if (!reportData || !reportData.dates || reportData.dates.length === 0) {
         showToast('ไม่พบข้อมูลการเช็คชื่อในเดือนนี้', 'warning');
-        hideProgress();
-        return;
+        hideProgress(); return; 
     }
 
     const sortedDates = reportData.dates.sort((a,b)=>{
@@ -2080,12 +2080,9 @@ async function printMonthlyHomeroomReport(month, year) {
     let rows = '';
     sortedDates.forEach((dateStr, idx) => {
       let abs = [];
-      // ตรวจสอบว่ามีข้อมูล attendance ของวันที่นั้นๆ ไหม
-      const attendanceByDate = reportData.attendance ? reportData.attendance : {};
-      
       reportData.students.forEach(s => { 
-        // เช็คที่มาของข้อมูลการขาด
-        const st = (reportData.attendance && reportData.attendance[s.studentId]) ? reportData.attendance[s.studentId][dateStr] : null;
+        const attData = reportData.attendance[s.studentId];
+        const st = attData ? attData[dateStr] : null; 
         if (['ข','ล','ป'].includes(st)) abs.push(`${s.name} (${st})`); 
       });
 
@@ -2100,11 +2097,9 @@ async function printMonthlyHomeroomReport(month, year) {
         <td>${topics !== '-' ? '- '+topics : '-'}</td>
         <td style="color:#991b1b;font-size:11px;">${absText}</td>
         <td>${note}</td>
-        <td></td>
       </tr>`;
     });
 
-    // สร้าง HTML สำหรับพิมพ์
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>สมุดโฮมรูม</title>
     <style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');
     @page{size:A4 landscape; margin:15mm;} body{font-family:'Sarabun',sans-serif; font-size:13px;}
@@ -2114,19 +2109,27 @@ async function printMonthlyHomeroomReport(month, year) {
         <h3>${document.getElementById('navSchoolName')?.textContent || 'โรงเรียน'}</h3>
         <p><b>ชั้นเรียน:</b> ${cls} | <b>เดือน:</b> ${THAI_MONTHS_CAL[parseInt(month)]} ${year} | <b>ครู:</b> ${currentUser.name}</p>
       </div>
-      <table><thead><tr><th width="40">ที่</th><th width="60">ว/ด/ป</th><th width="300">หัวข้อที่อบรม</th><th width="200">นักเรียนที่ ข/ล/ป</th><th width="200">หมายเหตุ</th><th width="80">ลายมือชื่อ</th></tr></thead><tbody>${rows}</tbody></table>
+      <table><thead><tr><th width="40">ที่</th><th width="60">ว/ด/ป</th><th width="300">หัวข้อที่อบรม</th><th width="200">นักเรียนที่ ข/ล/ป</th><th width="200">หมายเหตุ</th></tr></thead><tbody>${rows}</tbody></table>
       <script>window.onload=function(){ window.print(); };<\/script></body></html>`;
-    
-    // เรียกใช้ฟังก์ชัน openPrint
     openPrint(html);
-
   } catch(e) { 
-    console.error("พิมพ์โฮมรูม Error:", e);
-    showToast('เกิดข้อผิดพลาดในการสร้างรายงาน: ' + e.message, 'error'); 
+    console.error(e);
+    showToast('เกิดข้อผิดพลาด: ' + e.message, 'error'); 
   }
   hideProgress();
 }  
-  
+
+  // ฟังก์ชันเรียกจากปุ่มใน Modal
+function handleMonthlyPrint() {
+    const picker = document.getElementById('hrMonthPicker');
+    const val = picker.value; // เช่น "3-2569"
+    if (!val) { showToast('กรุณาเลือกเดือน', 'error'); return; }
+    
+    bootstrap.Modal.getInstance(document.getElementById('printHomeroomModal')).hide();
+    
+    const [month, year] = val.split('-');
+    printMonthlyHomeroomReport(month, year);
+}
   function printWarningLetter(studentId) {
   const student = calStudents.find(s => s.studentId === studentId);
   if (!student) return;
