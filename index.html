@@ -234,6 +234,25 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
   .quick-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .quick-btn { text-align: center; }
 }
+  .cal-summary-chip {
+  background:#fff;
+  border:1.5px solid #e2e8f0;
+  border-radius:14px;
+  padding:10px 14px;
+  min-width:140px;
+  box-shadow:0 2px 8px rgba(0,0,0,.03);
+}
+.cal-summary-chip .num {
+  font-size:1.25rem;
+  font-weight:800;
+  line-height:1;
+  margin-bottom:3px;
+}
+.cal-summary-chip .lbl {
+  font-size:.76rem;
+  color:#64748b;
+  font-weight:600;
+}
 </style>
 </head>
 <body>
@@ -408,6 +427,15 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
         </div>
       </div>
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div id="calSummaryBar" class="mb-3" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+
+<div class="mb-3" style="display:flex;flex-wrap:wrap;gap:8px;font-size:.8rem;color:#475569;">
+  <span class="cal-badge holiday">🚫 วันหยุดพิเศษ</span>
+  <span class="cal-badge makeup">📚 วันเรียนชดเชย</span>
+  <span style="background:#fafafa;border:1px solid #e5e7eb;border-radius:10px;padding:4px 10px;">🗓️ เสาร์-อาทิตย์</span>
+  <span style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:4px 10px;">📌 วันปัจจุบัน</span>
+</div>
+        
         <div class="d-flex gap-2 flex-wrap" id="calFilters">
           <span style="font-size:0.8rem; color:#64748b; align-self:center; margin-right:4px;">ฟิลเตอร์จุดสี:</span>
           <label class="cal-filter-lbl"><input type="checkbox" value="ม" checked onchange="toggleCalFilter()"><span class="cal-dot" style="background:#22c55e;"></span> มาเรียน</label>
@@ -598,6 +626,95 @@ const DAY_NAMES =['อา','จ','อ','พ','พฤ','ศ','ส'];
 // =============================================
 // Utilities
 // =============================================
+  function parseThaiDate(str) {
+  const [dd, mm, yyyy] = str.split('/').map(Number);
+  return new Date(yyyy - 543, mm - 1, dd);
+}
+
+function formatThaiDate(d) {
+  return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + (d.getFullYear() + 543);
+}
+
+function isSameOrAfter(a, b) {
+  return a.getTime() >= b.getTime();
+}
+
+function isSameOrBefore(a, b) {
+  return a.getTime() <= b.getTime();
+}
+
+function isSchoolDay(dateObj, dateStr) {
+  const dow = dateObj.getDay(); // 0=อา, 6=ส
+  const hol = calHolidays[dateStr];
+
+  if (hol?.type === 'holiday') return false;
+  if (hol?.type === 'makeup') return true;
+
+  // วันเรียนปกติ = จันทร์-ศุกร์
+  return dow >= 1 && dow <= 5;
+}
+
+function getTermSchoolDayStats() {
+  if (!termDates.start || !termDates.end) {
+    return {
+      totalSchoolDays: 0,
+      holidayDays: 0,
+      makeupDays: 0
+    };
+  }
+
+  const start = new Date(termDates.start);
+  const end = new Date(termDates.end);
+
+  let totalSchoolDays = 0;
+  let holidayDays = 0;
+  let makeupDays = 0;
+
+  const cur = new Date(start);
+  while (cur <= end) {
+    const ds = formatThaiDate(cur);
+    const hol = calHolidays[ds];
+    const dow = cur.getDay();
+
+    if (hol?.type === 'holiday') {
+      holidayDays++;
+    }
+    if (hol?.type === 'makeup') {
+      makeupDays++;
+    }
+
+    if (isSchoolDay(cur, ds)) {
+      totalSchoolDays++;
+    }
+
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  return { totalSchoolDays, holidayDays, makeupDays };
+}
+
+function getMonthSchoolDayStats(month, year) {
+  const daysInMonth = new Date(year - 543, month, 0).getDate();
+  let schoolDays = 0;
+  let holidayDays = 0;
+  let makeupDays = 0;
+  let weekendDays = 0;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = pad(d) + '/' + pad(month) + '/' + year;
+    const dt = new Date(year - 543, month - 1, d);
+    const dow = dt.getDay();
+    const hol = calHolidays[ds];
+
+    if (dow === 0 || dow === 6) weekendDays++;
+    if (hol?.type === 'holiday') holidayDays++;
+    if (hol?.type === 'makeup') makeupDays++;
+
+    if (isSchoolDay(dt, ds)) schoolDays++;
+  }
+
+  return { schoolDays, holidayDays, makeupDays, weekendDays };
+}
 function todayStr() {
   const d = new Date();
   return pad(d.getDate()) + '/' + pad(d.getMonth()+1) + '/' + (d.getFullYear()+543);
@@ -1391,6 +1508,37 @@ function toggleCalFilter() {
   renderCalendar(); 
 }
 
+  function renderCalendarSummary() {
+  const wrap = document.getElementById('calSummaryBar');
+  if (!wrap) return;
+
+  const termStats = getTermSchoolDayStats();
+  const monthStats = getMonthSchoolDayStats(calMonth, calYear);
+
+  wrap.innerHTML = `
+    <div class="cal-summary-chip">
+      <div class="num" style="color:#0f766e;">${termStats.totalSchoolDays}</div>
+      <div class="lbl">วันเรียนทั้งเทอม</div>
+    </div>
+    <div class="cal-summary-chip">
+      <div class="num" style="color:#0284c7;">${monthStats.schoolDays}</div>
+      <div class="lbl">วันเรียนเดือนนี้</div>
+    </div>
+    <div class="cal-summary-chip">
+      <div class="num" style="color:#b45309;">${monthStats.holidayDays}</div>
+      <div class="lbl">วันหยุดพิเศษเดือนนี้</div>
+    </div>
+    <div class="cal-summary-chip">
+      <div class="num" style="color:#4338ca;">${monthStats.makeupDays}</div>
+      <div class="lbl">วันเรียนชดเชยเดือนนี้</div>
+    </div>
+    <div class="cal-summary-chip">
+      <div class="num" style="color:#6b7280;">${monthStats.weekendDays}</div>
+      <div class="lbl">เสาร์-อาทิตย์เดือนนี้</div>
+    </div>
+  `;
+}
+
 function renderCalendar() {
   const cls = document.getElementById('calClassroom').value;
   const dropdown = document.getElementById('calMonthDropdown');
@@ -1416,6 +1564,7 @@ function renderCalendar() {
     const dow      = (startDow+d-1)%7; 
     const isToday  = dateStr===todayStr;
     const isWeekend= (dow===0||dow===6);
+    const isNormalWeekend = isWeekend && !isMakeup && !isHoliday;
     const dayAtt   = calDayData[dateStr]||null;
     const hasData  = dayAtt && Object.keys(dayAtt).length>0;
 
@@ -1448,23 +1597,26 @@ function renderCalendar() {
     const noteBadge = dayNote ? `<div class="cal-note-badge" title="${dayNote}">📝 ${dayNote}</div>` : '';
 
     let cellContent='';
-    if (isHoliday) {
-      cellContent=`<div class="cal-badge holiday">🚫 หยุด</div>${holInfo.note?`<div class="cal-summary">${holInfo.note}</div>`:''}`;
-    } else if (isMakeup) {
-      cellContent=`<div class="cal-badge makeup">📚 ชดเชย</div>${holInfo.note?`<div class="cal-summary">${holInfo.note}</div>`:''}`;
-      if(hasData) cellContent+=`<div class="cal-dots">${dotsHtml}</div>`;
-    } else if (hasData) {
-      const parts=[];
-      if(cntM) parts.push(`<span style="color:#16a34a;">ม${cntM}</span>`);
-      if(cntK) parts.push(`<span style="color:#dc2626;">ข${cntK}</span>`);
-      if(cntL) parts.push(`<span style="color:#d97706;">ล${cntL}</span>`);
-      if(cntP) parts.push(`<span style="color:#be185d;">ป${cntP}</span>`);
-      if(cntS) parts.push(`<span style="color:#6366f1;">ส${cntS}</span>`);
-      if(cntNone) parts.push(`<span style="color:#94a3b8;">?${cntNone}</span>`);
-      cellContent=`<div class="cal-dots">${dotsHtml}</div><div class="cal-summary">${parts.join(' ')}</div>`;
-    } else {
-      cellContent=`<div class="cal-no-data">ยังไม่เช็ค</div>`;
-    }
+   if (isHoliday) {
+  cellContent=`<div class="cal-badge holiday">🚫 หยุด</div>${holInfo.note?`<div class="cal-summary">${holInfo.note}</div>`:''}`;
+} else if (isMakeup) {
+  cellContent=`<div class="cal-badge makeup">📚 ชดเชย</div>${holInfo.note?`<div class="cal-summary">${holInfo.note}</div>`:''}`;
+  if(hasData) cellContent+=`<div class="cal-dots">${dotsHtml}</div>`;
+} else if (isNormalWeekend) {
+  cellContent = `<div class="cal-no-data">เสาร์-อาทิตย์</div>`;
+} else if (hasData) {
+  const parts=[];
+  if(cntM) parts.push(`<span style="color:#16a34a;">ม${cntM}</span>`);
+  if(cntK) parts.push(`<span style="color:#dc2626;">ข${cntK}</span>`);
+  if(cntL) parts.push(`<span style="color:#d97706;">ล${cntL}</span>`);
+  if(cntP) parts.push(`<span style="color:#be185d;">ป${cntP}</span>`);
+  if(cntS) parts.push(`<span style="color:#6366f1;">ส${cntS}</span>`);
+  if(cntNone) parts.push(`<span style="color:#94a3b8;">?${cntNone}</span>`);
+  cellContent=`<div class="cal-dots">${dotsHtml}</div><div class="cal-summary">${parts.join(' ')}</div>`;
+} else {
+  const dowLabel = DAY_NAMES[dow];
+  cellContent = `<div class="cal-no-data">${dowLabel} • ยังไม่เช็ค</div>`;
+}
 
     const holBtn = `<button class="cal-holiday-btn" onclick="event.stopPropagation();openHolidayModal('${dateStr}')" title="วันหยุด/ชดเชย">⚙️</button>`;
     const canEdit = !isHoliday && (!isWeekend || isMakeup);
@@ -1502,9 +1654,9 @@ function renderCalendar() {
       cellsInRow=0;
     }
   }
-
-  document.getElementById('calGrid').innerHTML = html;
-  renderStudentTimeline();
+document.getElementById('calGrid').innerHTML = html;
+renderCalendarSummary();
+renderStudentTimeline();
 }
 
 function openHolidayModal(dateStr) {
