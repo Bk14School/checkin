@@ -926,7 +926,37 @@ function goBackToLogin() {
 async function changeActiveTerm(termVal) {
   currentTerm = termVal;
   showProgress('กำลังเปลี่ยนเทอม...');
+  
+  // 1. อัปเดตข้อมูลวันเปิด-ปิดเทอม
   await applyTermConfig();
+  
+  // 2. สั่งให้สร้างตัวเลือกเดือนใน Dropdown ใหม่ตามเทอมที่เพิ่งเลือก
+  buildCalMonthDropdown();
+  
+  // 3. กำหนดเดือนที่ควรแสดงเป็นค่าเริ่มต้น
+  const dropdown = document.getElementById('calMonthDropdown');
+  const now = new Date();
+  let currentM = now.getMonth() + 1;
+  let currentY = now.getFullYear() + 543;
+  let targetVal = `${currentM}-${currentY}`;
+
+  // ตรวจสอบว่าเดือนปัจจุบันอยู่ในเทอมที่เลือกมาใหม่หรือไม่
+  let optionExists = Array.from(dropdown.options).some(opt => opt.value === targetVal);
+  
+  if (optionExists) {
+    // ถ้าเดือนปัจจุบันอยู่ในเทอมนี้ ให้แสดงเดือนปัจจุบัน
+    dropdown.value = targetVal;
+    calMonth = currentM;
+    calYear = currentY;
+  } else if (dropdown.options.length > 0) {
+    // ถ้าเดือนปัจจุบันไม่ได้อยู่ในเทอมนี้ (เช่น ตอนนี้เทอม 2 แต่กดดูเทอม 1) ให้เด้งไปที่เดือนแรกสุดของเทอมนั้น
+    dropdown.selectedIndex = 0;
+    const parts = dropdown.value.split('-');
+    calMonth = parseInt(parts[0]);
+    calYear = parseInt(parts[1]);
+  }
+
+  // 4. โหลดข้อมูลปฏิทินมาแสดงผล
   await loadCalendarData();
   hideProgress();
 }
