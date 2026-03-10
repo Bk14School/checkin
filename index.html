@@ -928,7 +928,8 @@ async function changeActiveTerm(termVal) {
     termSel.value = currentTerm;
   }
   
-  // ซ่อน btnNav1 ทิ้งไป และแสดงปุ่มที่เหลือ['btnNavDash','btnNav2','btnNav3','btnLogout'].forEach(id => {
+  // ซ่อน btnNav1 ทิ้งไป และแสดงปุ่มที่เหลือ
+    ['btnNavDash','btnNav2','btnNav3','btnLogout'].forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display='inline-block';
   });
