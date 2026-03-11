@@ -790,23 +790,57 @@ async function applyTermConfig() {
 // =============================================
 // Dashboard View
 // =============================================
-  // =============================================
+// =============================================
+// ฟังก์ชันช่วยแปลงวันที่จาก Config ให้คอมพิวเตอร์คำนวณได้
+// =============================================
+function parseThaiDate(str) {
+  if (!str) return null;
+  // กรณี 10/03/2569
+  if (str.includes('/')) {
+    let p = str.split('/');
+    let d = parseInt(p[0], 10);
+    let m = parseInt(p[1], 10) - 1; // เดือนใน JS เริ่มที่ 0
+    let y = parseInt(p[2], 10);
+    if (y > 2400) y -= 543; // แปลง พ.ศ. เป็น ค.ศ.
+    return new Date(y, m, d);
+  }
+  // เผื่อกรณีข้อมูลเก่า 2026-03-10
+  if (str.includes('-')) {
+    let p = str.split('-');
+    let y = parseInt(p[0], 10);
+    let m = parseInt(p[1], 10) - 1;
+    let d = parseInt(p[2], 10);
+    if (y > 2400) y -= 543; 
+    return new Date(y, m, d);
+  }
+  return null;
+}
+
+// =============================================
 // ฟังก์ชันคำนวณวันเรียนที่แท้จริงของเทอม
 // =============================================
 function calculateSchoolDays() {
   if (!termDates.start || !termDates.end) return { total: 0, byMonth: {} };
 
-  const start = new Date(termDates.start);
-  const end = new Date(termDates.end);
-  const current = new Date(start);
+  // แปลงวันที่ให้ JS รู้จักก่อนคำนวณ
+  const start = parseThaiDate(termDates.start);
+  const end = parseThaiDate(termDates.end);
 
+  // ถ้าแปลงไม่ได้ให้คืนค่า 0
+  if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return { total: 0, byMonth: {} };
+  }
+
+  const current = new Date(start);
   let totalDays = 0;
   let daysByMonth = {}; 
 
-  while (current <= end) {
+  let safeLimit = 0; // กัน Loop ค้าง
+  while (current <= end && safeLimit < 400) {
+    safeLimit++;
     let d = current.getDate();
     let m = current.getMonth() + 1;
-    let y = current.getFullYear() + 543; // แปลงเป็น พ.ศ. ให้ตรงกับ Key ในฐานข้อมูล
+    let y = current.getFullYear() + 543; // แปลงเป็น พ.ศ. เพื่อเอาไปเทียบกับวันหยุด
     
     let dateStr = pad(d) + '/' + pad(m) + '/' + y;
     let dow = current.getDay(); // 0 = อา, 1-5 = จ-ศ, 6 = ส
@@ -847,7 +881,9 @@ function calculateSchoolDays() {
   return { total: totalDays, byMonth: daysByMonth };
 }
 
+// =============================================
 // ฟังก์ชันสร้าง UI แสดงผลในหน้า Dashboard
+// =============================================
 function renderSchoolDaysSummary() {
   const summaryRow = document.getElementById('schoolDaysSummaryRow');
   if (!summaryRow) return;
@@ -886,6 +922,8 @@ function renderSchoolDaysSummary() {
   summaryRow.innerHTML = html;
   summaryRow.style.display = 'flex';
 }
+
+// ฟังก์ชันสร้าง UI แสดงผลในหน้า Dashboard
 function openDashboard() {
   showPage('dashboardPage');
   if (!currentUser) document.getElementById('btnNavLogin').style.display = 'inline-block';
