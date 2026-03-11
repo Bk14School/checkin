@@ -2452,18 +2452,15 @@ function handleMonthlyPrint() {
     printMonthlyHomeroomReport(month, year);
 }
 
-  function printWarningLetter(studentId, level) {
+function printWarningLetter(studentId, level) {
   const student = calStudents.find(s => s.studentId === studentId);
   if (!student) return;
-  
   const cls = document.getElementById('calClassroom').value;
   const schoolName = document.getElementById('navSchoolName')?.textContent || 'โรงเรียนบ้านคลอง 14';
   const printDate = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
   const docYear = currentYear || (new Date().getFullYear() + 543);
-  
   const cleanCls = cls.replace('.', '');
-  const fullClassName = cleanCls.startsWith('ป') ? `ประถมศึกษาปีที่ ${cleanCls.replace('ป', '')}` : 
-                       (cleanCls.startsWith('ม') ? `มัธยมศึกษาปีที่ ${cleanCls.replace('ม', '')}` : cleanCls);
+  const fullClassName = cleanCls.startsWith('ป') ? `ประถมศึกษาปีที่ ${cleanCls.replace('ป', '')}` : (cleanCls.startsWith('ม') ? `มัธยมศึกษาปีที่ ${cleanCls.replace('ม', '')}` : cleanCls);
 
   let absentCount = 0;
   const daysInMonth = new Date(calYear-543, calMonth, 0).getDate();
@@ -2473,33 +2470,29 @@ function handleMonthlyPrint() {
   }
 
   let subject = "เรื่อง แจ้งเตือนการขาดเรียนและผลกระทบต่อสิทธิ์การวัดผลการเรียน";
-  let bodyText = `ด้วยโรงเรียน${schoolName} ได้ติดตามตรวจสอบเวลาเรียนของ <b>${student.name}</b> นักเรียนระดับ <b>${fullClassName}</b> ในภาคเรียนที่ ${currentTerm} ปีการศึกษา ${docYear} พบว่านักเรียนมีการขาดเรียนรวมทั้งสิ้น <b>${absentCount} วัน</b><br><br>ตามระเบียบกระทรวงศึกษาธิการว่าด้วยการวัดและประเมินผลการเรียน กำหนดให้นักเรียนต้องมีเวลาเรียนในแต่ละรายวิชาไม่น้อยกว่าร้อยละ 80 ของเวลาเรียนทั้งหมด หากนักเรียนมีเวลาเรียนไม่ครบตามเกณฑ์ดังกล่าว จะส่งผลให้ไม่ได้รับการตัดสินผลการเรียน (ม.ส.) ในรายวิชานั้นๆ ซึ่งจะส่งผลโดยตรงต่อการเลื่อนชั้นปีหรือการสำเร็จการศึกษา`;
+  let bodyText = `ด้วยโรงเรียน${schoolName} ได้ติดตามตรวจสอบเวลาเรียนของ <b>${student.name}</b> นักเรียนระดับ <b>${fullClassName}</b> ในภาคเรียนที่ ${currentTerm} ปีการศึกษา ${docYear} พบว่านักเรียนมีการขาดเรียนรวมทั้งสิ้น <b>${absentCount} วัน</b><br><br>ตามระเบียบกระทรวงศึกษาธิการว่าด้วยการวัดและประเมินผลการเรียน กำหนดให้นักเรียนต้องมีเวลาเรียนในแต่ละรายวิชาไม่น้อยกว่าร้อยละ 80 ของเวลาเรียนทั้งหมด หากมีเวลาเรียนไม่ครบตามเกณฑ์ดังกล่าว จะส่งผลให้ไม่ได้รับการตัดสินผลการเรียน (ม.ส.) ในรายวิชานั้นๆ ซึ่งจะส่งผลโดยตรงต่อการเลื่อนชั้นปี`;
 
   const printWindow = window.open('', '_blank');
-  const html = `<!DOCTYPE html>
-  <html lang="th">
-  <head><meta charset="utf-8">
+  const html = `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8">
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
-      @page { size: A4 portrait; margin: 25mm; }
-      body { font-family: 'Sarabun', sans-serif; font-size: 16px; line-height: 1.6; color: #000; margin: 0; }
-      .a4 { width: 100%; height: 260mm; position: relative; }
+      @page { size: A4 portrait; margin: 15mm; }
+      body { font-family: 'Sarabun', sans-serif; font-size: 15px; line-height: 1.4; color: #000; margin: 0; padding: 0; }
+      .a4 { width: 100%; height: 265mm; position: relative; }
       .header-logo { text-align: center; margin-bottom: 5px; }
-      .header-logo img { width: 50px; }
-      .doc-header { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 14px; }
-      .subject { margin-bottom: 20px; font-weight: 700; }
-      .content { text-align: justify; margin-bottom: 30px; }
-      .indent { text-indent: 50px; }
-      .sig-area { margin-top: 50px; display: flex; justify-content: space-between; }
+      .header-logo img { width: 45px; }
+      .doc-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px; }
+      .subject { margin: 10px 0; font-weight: 700; text-align: center; }
+      .content { text-align: justify; }
+      .indent { text-indent: 40px; }
+      .sig-area { margin-top: 30px; display: flex; justify-content: space-between; }
       .sig-box { text-align: center; width: 45%; }
-      .sig-line { border-bottom: 1px dotted #000; height: 35px; margin-bottom: 5px; }
-      .tear-line { border-top: 1px dashed #000; margin: 30px 0; text-align: center; font-size: 12px; color: #666; }
+      .sig-line { border-bottom: 1px dotted #000; height: 25px; margin-bottom: 2px; }
       .footer-section { position: absolute; bottom: 0; width: 100%; }
-      .tear-off-title { text-align: center; font-weight: 700; text-decoration: underline; margin-bottom: 15px; }
-      .fill-line { border-bottom: 1px dotted #000; display: block; width: 100%; margin-top: 5px; height: 25px; }
-      .long-line { border-bottom: 1px dotted #000; display: inline-block; width: 100%; height: 25px; }
-    </style>
-  </head>
+      .tear-line { border-top: 1px dashed #000; margin: 20px 0 10px 0; text-align: center; font-size: 11px; }
+      .tear-off-title { text-align: center; font-weight: 700; text-decoration: underline; margin-bottom: 8px; }
+      .fill-line { border-bottom: 1px dotted #000; display: inline-block; width: 100%; height: 20px; }
+    </style></head>
   <body>
     <div class="a4">
       <div class="header-logo"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Thai_government_Garuda_emblem_%28Version_2%29.svg/1200px-Thai_government_Garuda_emblem_%28Version_2%29.svg.png"></div>
@@ -2514,10 +2507,10 @@ function handleMonthlyPrint() {
       <div class="footer-section">
         <div class="tear-line">✂️ --------------------------- ตัดตามรอยปรุนี้ ---------------------------</div>
         <div class="tear-off-title">ส่วนที่ 2: แบบตอบรับสำหรับผู้ปกครอง</div>
-        <p>ข้าพเจ้า (นาย/นาง/นางสาว) <span class="long-line"></span></p>
+        <p>ข้าพเจ้า (นาย/นาง/นางสาว) ..........................................................................................</p>
         <p>ผู้ปกครองของ <b>${student.name}</b> ได้รับทราบการแจ้งเตือนการขาดเรียนจำนวน <b>${absentCount} วัน</b> เรียบร้อยแล้ว</p>
         <p>สาเหตุการขาดเรียน:<span class="fill-line"></span></p>
-        <div style="display:flex; justify-content:space-between; margin-top:20px;">
+        <div style="display:flex; justify-content:space-between; margin-top:15px;">
           <div>ลงชื่อ ......................................... ผู้ปกครอง</div>
           <div>วันที่ ........./........./.........</div>
         </div>
@@ -2528,8 +2521,7 @@ function handleMonthlyPrint() {
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
-}
-  
+}  
   // =============================================
 // ฟังก์ชันอัปเดตตัวเลขวันเรียนในหน้า ปฏิทิน
 // =============================================
