@@ -296,6 +296,8 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
 
 <!-- ======= Public Dashboard Page ======= -->
 <div id="dashboardPage" class="page-section">
+      <div id="schoolDaysSummaryRow" class="row g-3 mb-3" style="display:none;"></div>
+
   <div class="container-main">
     <div class="app-card">
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -724,6 +726,8 @@ async function afterLogin() {
   }
 
   await applyTermConfig(); 
+    renderSchoolDaysSummary(); // 👈 เพิ่มบรรทัดนี้
+
   hideProgress();
   openCalendarPage(); 
 }
@@ -747,6 +751,8 @@ async function changeActiveTerm(termVal) {
   showProgress('กำลังเปลี่ยนเทอม...');
   
   await applyTermConfig();
+    renderSchoolDaysSummary(); // 👈 เพิ่มบรรทัดนี้
+
   buildCalMonthDropdown();
   
   const dropdown = document.getElementById('calMonthDropdown');
@@ -784,6 +790,102 @@ async function applyTermConfig() {
 // =============================================
 // Dashboard View
 // =============================================
+  // =============================================
+// ฟังก์ชันคำนวณวันเรียนที่แท้จริงของเทอม
+// =============================================
+function calculateSchoolDays() {
+  if (!termDates.start || !termDates.end) return { total: 0, byMonth: {} };
+
+  const start = new Date(termDates.start);
+  const end = new Date(termDates.end);
+  const current = new Date(start);
+
+  let totalDays = 0;
+  let daysByMonth = {}; 
+
+  while (current <= end) {
+    let d = current.getDate();
+    let m = current.getMonth() + 1;
+    let y = current.getFullYear() + 543; // แปลงเป็น พ.ศ. ให้ตรงกับ Key ในฐานข้อมูล
+    
+    let dateStr = pad(d) + '/' + pad(m) + '/' + y;
+    let dow = current.getDay(); // 0 = อา, 1-5 = จ-ศ, 6 = ส
+
+    let monthKey = pad(m) + '-' + y;
+    if (!daysByMonth[monthKey]) {
+      daysByMonth[monthKey] = { label: THAI_MONTHS_CAL[m] + ' ' + y, count: 0 };
+    }
+
+    let isHoliday = false;
+    let isMakeup = false;
+
+    // เช็คว่าวันนี้ถูกตั้งค่าในปฏิทินระบบไว้ว่าอย่างไร
+    if (calHolidays[dateStr]) {
+      if (calHolidays[dateStr].type === 'holiday') isHoliday = true;
+      if (calHolidays[dateStr].type === 'makeup') isMakeup = true;
+    }
+
+    let isSchoolDay = false;
+    if (isHoliday) {
+      isSchoolDay = false; // วันหยุดพิเศษ
+    } else if (isMakeup) {
+      isSchoolDay = true;  // วันเรียนชดเชย (นับแม้เป็นเสาร์อาทิตย์)
+    } else if (dow >= 1 && dow <= 5) {
+      isSchoolDay = true;  // วันจันทร์ - ศุกร์ ปกติ
+    }
+
+    // ถ้านับเป็นวันเรียน ให้บวกเลข
+    if (isSchoolDay) {
+      totalDays++;
+      daysByMonth[monthKey].count++;
+    }
+
+    // ขยับไปวันถัดไป
+    current.setDate(current.getDate() + 1);
+  }
+
+  return { total: totalDays, byMonth: daysByMonth };
+}
+
+// ฟังก์ชันสร้าง UI แสดงผลในหน้า Dashboard
+function renderSchoolDaysSummary() {
+  const summaryRow = document.getElementById('schoolDaysSummaryRow');
+  if (!summaryRow) return;
+
+  const stats = calculateSchoolDays();
+  if (stats.total === 0) {
+    summaryRow.style.display = 'none';
+    return;
+  }
+
+  let html = `
+    <div class="col-12">
+      <div class="stat-card" style="border-left: 5px solid var(--primary); text-align: left; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+        
+        <div>
+          <div class="stat-label" style="font-size: 0.95rem; font-weight: 600; color: #475569;">📅 จำนวนวันเรียนทั้งหมด (เทอม ${currentTerm}/${currentYear})</div>
+          <div class="stat-num" style="color: var(--primary); font-size: 2.2rem; margin-top: 4px;">${stats.total} <span style="font-size: 1rem; color: #64748b; font-weight: 500;">วัน</span></div>
+        </div>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+  `;
+
+  // วนลูปสร้างกล่องสรุปรายเดือน
+  for (const [key, data] of Object.entries(stats.byMonth)) {
+     if (data.count > 0) {
+        html += `
+          <div style="background: #f8fafc; padding: 8px 14px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; min-width: 90px;">
+            <div style="font-size: 0.75rem; color: #64748b; font-weight: 700;">${data.label}</div>
+            <div style="font-size: 1.2rem; font-weight: 800; color: #334155; margin-top: 2px;">${data.count} <span style="font-size: 0.7rem;">วัน</span></div>
+          </div>
+        `;
+     }
+  }
+
+  html += `</div></div></div>`;
+  summaryRow.innerHTML = html;
+  summaryRow.style.display = 'flex';
+}
 function openDashboard() {
   showPage('dashboardPage');
   if (!currentUser) document.getElementById('btnNavLogin').style.display = 'inline-block';
