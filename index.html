@@ -2737,12 +2737,12 @@ async function confirmAddStudent() {
     const cls = document.getElementById('calClassroom').value || currentUser.classroom;
     
     // 2. ส่งคำสั่งไป Backend
-    await api('transferOutStudent', { 
-      year: currentYear, 
-      classroom: cls, 
-      studentId: studentId, 
-      teacherName: currentUser.name 
-    });
+await api('transferOutStudent', { 
+  year: currentYear, 
+  classroom: cls, 
+  studentId: studentId, 
+  teacherName: currentUser.name 
+});
     
     showToast('ทำรายการย้ายออกสำเร็จ', 'success');
     
