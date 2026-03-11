@@ -1832,8 +1832,12 @@ function clearCalNote() {
 // Print & Report logic
 // =============================================
 function openPrint(html) {
-  const w = window.open('','_blank');
-  if (!w) { showToast('กรุณาอนุญาต Popup ในเบราว์เซอร์ก่อนทำการพิมพ์','error'); return; }
+  const w = window.open('', '_blank');
+  if (!w) { 
+    showToast('⚠️ เบราว์เซอร์บล็อกการเปิดหน้าต่าง กรุณากด "อนุญาต Popup" ที่แถบด้านบน', 'error'); 
+    return; 
+  }
+  w.document.open();
   w.document.write(html);
   w.document.close();
 }
@@ -2211,11 +2215,26 @@ function openPrintHomeroomModal() {
 async function printDailyHomeroomReport() {
   const targetDate = calEditDate || todayStr();
   const cls = document.getElementById('calClassroom').value || currentUser.classroom;
+  
+  // ✅ 1. เปิดหน้าต่างใหม่ "ทันที" ที่คลิก เพื่อหลบ Popup Blocker
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) { 
+    showToast('⚠️ กรุณาอนุญาต Popup (ป๊อปอัป) ในเบราว์เซอร์ก่อนทำการพิมพ์', 'error'); 
+    return; 
+  }
+  // ใส่หน้า Loading รอไว้
+  printWindow.document.write('<div style="text-align:center; padding:50px; font-family:sans-serif; color:#1e3a5f;"><h2>⏳ กำลังเตรียมข้อมูลพิมพ์...</h2><p>กรุณารอสักครู่</p></div>');
+
   showProgress('กำลังดึงข้อมูล...');
   try {
     const logs = await api('getHomeroomLogs', { year: currentYear, classroom: cls });
     const todayLog = logs.find(l => l.date === targetDate);
-    if (!todayLog && !confirm(`ยังไม่ได้บันทึกโฮมรูมของวันที่ ${targetDate}\nต้องการพิมพ์รายงานโฮมรูมเปล่าๆ หรือไม่?`)) { hideProgress(); return; }
+    
+    if (!todayLog && !confirm(`ยังไม่ได้บันทึกโฮมรูมของวันที่ ${targetDate}\nต้องการพิมพ์รายงานโฮมรูมเปล่าๆ หรือไม่?`)) { 
+      printWindow.close(); // ถ้ายกเลิก ให้ปิดหน้าต่างทิ้ง
+      hideProgress(); 
+      return; 
+    }
 
     let abs=[], lea=[], sic=[];
     calStudents.forEach(s => {
@@ -2230,40 +2249,45 @@ async function printDailyHomeroomReport() {
       <h4>📋 หัวข้อที่อบรม</h4><ul>${topics.length>0 ? topics.map(t=>`<li>${t.trim()}</li>`).join('') : '<li>- ไม่มีข้อมูล -</li>'}</ul>
       <h4>📝 หมายเหตุ</h4><div style="border:1px solid #ccc;padding:10px;min-height:50px;">${todayLog?todayLog.note:'-'}</div>
       <script>window.onload=()=>window.print();<\/script></body></html>`;
-    openPrint(html);
-  } catch(e) { showToast(e.message, 'error'); }
+    
+    // ✅ 2. เอา HTML ที่สมบูรณ์ไปเขียนทับหน้าต่างที่เปิดรอไว้
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+
+  } catch(e) { 
+    printWindow.close();
+    showToast(e.message, 'error'); 
+  }
   hideProgress();
 }
 
 
-
 // แก้ไขฟังก์ชัน printMonthlyHomeroomReport ให้ดึง logMap จาก global หรือดึงใหม่ถ้าจำเป็น
 async function printMonthlyHomeroomReport(month, displayYear) {
+  const cls = document.getElementById('calClassroom').value || currentUser.classroom;
+  const mm = String(month).padStart(2, '0');
+
+  // ✅ 1. เปิดหน้าต่างใหม่ "ทันที" 
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) { 
+    showToast('⚠️ กรุณาอนุญาต Popup (ป๊อปอัป) ในเบราว์เซอร์ก่อนทำการพิมพ์', 'error'); 
+    return; 
+  }
+  printWindow.document.write('<div style="text-align:center; padding:50px; font-family:sans-serif; color:#1e3a5f;"><h2>📊 กำลังดึงข้อมูลรายงานรายเดือน...</h2><p>อาจใช้เวลาสักครู่ กรุณารอ</p></div>');
+
   showProgress('กำลังดึงข้อมูล...');
   try {
-    const cls = document.getElementById('calClassroom').value || currentUser.classroom;
-    const mm = String(month).padStart(2, '0');
-
-    // ใช้ currentYear = ปีการศึกษา ของระบบ
-    const reportData = await api('getReport', {
-      year: currentYear,
-      classroom: cls,
-      month: mm
-    });
-
-    const logs = await api('getHomeroomLogs', {
-      year: currentYear,
-      classroom: cls
-    });
+    const reportData = await api('getReport', { year: currentYear, classroom: cls, month: mm });
+    const logs = await api('getHomeroomLogs', { year: currentYear, classroom: cls });
 
     const logMap = {};
-    (logs || []).forEach(l => {
-      if (l.date && l.date.split('/')[1] === mm) {
-        logMap[l.date] = l;
-      }
+    (logs ||[]).forEach(l => {
+      if (l.date && l.date.split('/')[1] === mm) { logMap[l.date] = l; }
     });
 
     if (!reportData || !reportData.dates || reportData.dates.length === 0) {
+      printWindow.close(); // ปิดทิ้งถ้าไม่มีข้อมูล
       hideProgress();
       showToast('ไม่พบข้อมูลการเช็คชื่อในเดือนนี้', 'warning');
       return;
@@ -2278,6 +2302,7 @@ async function printMonthlyHomeroomReport(month, displayYear) {
       });
 
     if (sortedDates.length === 0) {
+      printWindow.close();
       hideProgress();
       showToast('ไม่พบข้อมูลในเดือนที่เลือก', 'warning');
       return;
@@ -2285,32 +2310,25 @@ async function printMonthlyHomeroomReport(month, displayYear) {
 
     let rows = '';
     sortedDates.forEach((dateStr, idx) => {
-      let abs = [];
-
+      let abs =[];
       reportData.students.forEach(s => {
         const st = (reportData.attendance?.[s.studentId] || {})[dateStr];
-        if (['ข', 'ล', 'ป'].includes(st)) {
-          abs.push(`${s.name} (${st})`);
-        }
+        if (['ข', 'ล', 'ป'].includes(st)) { abs.push(`${s.name} (${st})`); }
       });
 
       const dayLog = logMap[dateStr];
-      const topics = dayLog?.topics
-        ? dayLog.topics.split(',').map(t => t.trim()).filter(Boolean)
-        : [];
+      const topics = dayLog?.topics ? dayLog.topics.split(',').map(t => t.trim()).filter(Boolean) :[];
       const note = dayLog?.note || '-';
       const absText = abs.length ? abs.join('<br>') : '<span style="color:#166534;">มาครบ</span>';
 
-      rows += `
-        <tr>
+      rows += `<tr>
           <td style="text-align:center;">${idx + 1}</td>
           <td style="text-align:center;">${dateStr}</td>
           <td>${topics.length ? topics.map(t => `- ${t}`).join('<br>') : '-'}</td>
           <td style="color:#991b1b;font-size:11px;">${absText}</td>
           <td>${note}</td>
           <td></td>
-        </tr>
-      `;
+        </tr>`;
     });
 
     const schoolName = document.getElementById('navSchoolName')?.textContent || 'โรงเรียน';
@@ -2318,60 +2336,35 @@ async function printMonthlyHomeroomReport(month, displayYear) {
 
     const html = `<!DOCTYPE html>
 <html>
-<head>
-<meta charset="utf-8">
-<title>สมุดโฮมรูม ${cls} ${monthName} ${displayYear}</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');
-@page { size:A4 landscape; margin:15mm; }
-body { font-family:'Sarabun',sans-serif; font-size:13px; color:#111; }
-table { width:100%; border-collapse:collapse; margin-top:10px; }
-th, td { border:1px solid #000; padding:6px; vertical-align:top; }
-th { background:#e2e8f0; text-align:center; }
-.head { text-align:center; margin-bottom:15px; }
-</style>
-</head>
+<head><meta charset="utf-8"><title>สมุดโฮมรูม ${cls} ${monthName} ${displayYear}</title>
+<style>@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');
+@page { size:A4 landscape; margin:15mm; } body { font-family:'Sarabun',sans-serif; font-size:13px; color:#111; }
+table { width:100%; border-collapse:collapse; margin-top:10px; } th, td { border:1px solid #000; padding:6px; vertical-align:top; }
+th { background:#e2e8f0; text-align:center; } .head { text-align:center; margin-bottom:15px; }
+</style></head>
 <body>
-  <div class="head">
-    <h2>บันทึกการจัดกิจกรรมโฮมรูม (Homeroom) รายเดือน</h2>
-    <h3>${schoolName}</h3>
-    <p>
-      <b>ชั้นเรียน:</b> ${cls}
-      | <b>เดือน:</b> ${monthName} ${displayYear}
-      | <b>ปีการศึกษา:</b> ${currentYear}
-      | <b>ครู:</b> ${currentUser.name}
-    </p>
+  <div class="head"><h2>บันทึกการจัดกิจกรรมโฮมรูม (Homeroom) รายเดือน</h2><h3>${schoolName}</h3>
+    <p><b>ชั้นเรียน:</b> ${cls} | <b>เดือน:</b> ${monthName} ${displayYear} | <b>ปีการศึกษา:</b> ${currentYear} | <b>ครู:</b> ${currentUser.name}</p>
   </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th width="40">ที่</th>
-        <th width="95">วันที่</th>
-        <th width="320">หัวข้อที่อบรม</th>
-        <th width="220">นักเรียนที่ ข/ล/ป</th>
-        <th width="220">หมายเหตุ</th>
-        <th width="90">ลายมือชื่อ</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${rows}
-    </tbody>
+  <table><thead><tr><th width="40">ที่</th><th width="95">วันที่</th><th width="320">หัวข้อที่อบรม</th><th width="220">นักเรียนที่ ข/ล/ป</th><th width="220">หมายเหตุ</th><th width="90">ลายมือชื่อ</th></tr></thead>
+    <tbody>${rows}</tbody>
   </table>
+  <script>window.onload = function() { window.print(); };<\/script>
+</body></html>`;
 
-  <script>
-    window.onload = function() { window.print(); };
-  <\/script>
-</body>
-</html>`;
+    // ✅ 2. เอา HTML ไปเขียนทับ
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
 
-    openPrint(html);
   } catch (e) {
+    printWindow.close();
     console.error('พิมพ์โฮมรูม Error:', e);
     showToast('เกิดข้อผิดพลาดในการสร้างรายงาน: ' + e.message, 'error');
   }
   hideProgress();
 }
+  
   // ฟังก์ชันเรียกจากปุ่มใน Modal
 function handleMonthlyPrint() {
     const picker = document.getElementById('hrMonthPicker');
