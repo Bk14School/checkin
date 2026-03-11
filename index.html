@@ -1080,21 +1080,37 @@ function printDashboard() {
 // =============================================
 function openConfigModal() {
   document.getElementById('cfgYear').value = sysConfig.active_year || "";
-  document.getElementById('cfgT1Start').value = sysConfig.t1_start || "";
-  document.getElementById('cfgT1End').value = sysConfig.t1_end || "";
-  document.getElementById('cfgT2Start').value = sysConfig.t2_start || "";
-  document.getElementById('cfgT2End').value = sysConfig.t2_end || "";
+  
+  // ฟังก์ชันช่วยแปลงวันที่จาก 15/05/2568 (ใน Sheet) กลับเป็น 2025-05-15 (ให้ HTML รู้จัก)
+  const formatForInput = (val) => {
+    if (!val) return "";
+    if (String(val).includes('/')) return dateToInput(val); // ใช้ฟังก์ชันที่มีในระบบอยู่แล้ว
+    return val; // เผื่อกรณีเจอข้อมูลเก่าที่เป็น YYYY-MM-DD อยู่
+  };
+
+  document.getElementById('cfgT1Start').value = formatForInput(sysConfig.t1_start);
+  document.getElementById('cfgT1End').value = formatForInput(sysConfig.t1_end);
+  document.getElementById('cfgT2Start').value = formatForInput(sysConfig.t2_start);
+  document.getElementById('cfgT2End').value = formatForInput(sysConfig.t2_end);
+  
   document.getElementById('cfgDefaultTerm').value = sysConfig.active_term || "1";
   new bootstrap.Modal(document.getElementById('configModal')).show();
 }
 
 async function saveYearConfig() {
+  // ฟังก์ชันช่วยแปลง 2025-05-15 (จาก HTML) ให้เป็น 15/05/2568 (บันทึกลง Sheet)
+  const formatForSave = (val) => {
+    if (!val) return "";
+    if (String(val).includes('-')) return inputToThai(val); // ใช้ฟังก์ชันที่มีในระบบอยู่แล้ว
+    return val;
+  };
+
   const payload = {
     year: document.getElementById('cfgYear').value.trim(),
-    t1_start: document.getElementById('cfgT1Start').value,
-    t1_end: document.getElementById('cfgT1End').value,
-    t2_start: document.getElementById('cfgT2Start').value,
-    t2_end: document.getElementById('cfgT2End').value,
+    t1_start: formatForSave(document.getElementById('cfgT1Start').value),
+    t1_end: formatForSave(document.getElementById('cfgT1End').value),
+    t2_start: formatForSave(document.getElementById('cfgT2Start').value),
+    t2_end: formatForSave(document.getElementById('cfgT2End').value),
     active_term: document.getElementById('cfgDefaultTerm').value
   };
 
@@ -1103,7 +1119,7 @@ async function saveYearConfig() {
   }
 
   bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
-  showProgress(`กำลังสร้างฐานข้อมูลรายปี ${payload.year}...`);
+  showProgress(`กำลังอัปเดตข้อมูลปี ${payload.year}...`);
   try {
     await api('setupYear', payload);
     sysConfig = await api('getConfig');
@@ -1111,16 +1127,17 @@ async function saveYearConfig() {
     currentTerm = sysConfig.active_term;
     document.getElementById('navTermSelector').value = currentTerm;
     
-    showToast(`✅ บันทึกและสร้างฐานข้อมูลปี ${currentYear} สำเร็จ`, 'success');
+    showToast(`✅ บันทึกการตั้งค่าปี ${currentYear} สำเร็จ`, 'success');
     await applyTermConfig();
+    if (typeof renderSchoolDaysSummary === 'function') renderSchoolDaysSummary(); // อัปเดตสถิติหน้า Dash
     await loadCalendarData();
   } catch(e) {
     showToast(e.message, 'error');
   }
   hideProgress();
 }
-
-function openAddStudent() {
+  
+  function openAddStudent() {
   document.getElementById('newStudentId').value = '';
   document.getElementById('newStudentName').value = '';
   document.getElementById('newStudentClass').value = currentUser.isAdmin ? '' : currentUser.classroom;
