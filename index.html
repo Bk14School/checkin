@@ -2457,8 +2457,7 @@ function printWarningLetter(studentId, level) {
   
   const cls = document.getElementById('calClassroom').value;
   const schoolName = document.getElementById('navSchoolName')?.textContent || 'โรงเรียนบ้านคลอง 14';
-  const printDate = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
-  const docYear = currentYear || (new Date().getFullYear() + 543);
+  const printDate = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
   const fullClassName = cls.startsWith('ป') ? `ประถมศึกษาปีที่ ${cls.replace('ป', '')}` : (cls.startsWith('ม') ? `มัธยมศึกษาปีที่ ${cls.replace('ม', '')}` : cls);
 
   let absentCount = 0;
@@ -2468,96 +2467,80 @@ function printWarningLetter(studentId, level) {
     if ((calDayData[ds] || {})[student.studentId] === 'ข') absentCount++;
   }
 
-  // 🟢 ตั้งค่าเนื้อหาตามระดับ (Level 1-3)
   let subject = "เรื่อง แจ้งเตือนการขาดเรียนและผลกระทบต่อสิทธิ์การวัดผลการเรียน";
-  let content = "";
+  let bodyText = "";
   
   if (level === 3) {
-    subject = "เรื่อง แจ้งเตือนครั้งสุดท้ายและมาตรการทางวินัย";
-    content = `ด้วยโรงเรียน${schoolName} ได้ติดตามตรวจสอบเวลาเรียนของ <b>${student.name}</b> นักเรียนระดับ <b>${fullClassName}</b> พบว่ามีสถิติการขาดเรียนรวมทั้งสิ้น <b>${absentCount} วัน</b> ซึ่งพฤติกรรมดังกล่าวถือเป็นการละเมิดระเบียบสถานศึกษาอย่างร้ายแรงและส่งผลกระทบต่อการเลื่อนชั้นปีโดยตรง<br><br>` +
-              `ตามระเบียบกระทรวงศึกษาธิการว่าด้วยการวัดและประเมินผลการเรียน (ฉบับที่ 2) พ.ศ. 2561 กำหนดให้นักเรียนต้องมีเวลาเรียนไม่น้อยกว่าร้อยละ 80 ของเวลาเรียนทั้งหมด เพื่อรักษาสิทธิ์ในการสอบวัดผลปลายภาคเรียน ซึ่งหากนักเรียนยังคงมีพฤติกรรมขาดเรียนเช่นนี้อีก โรงเรียนมีความจำเป็นต้องพิจารณามาตรการทางวินัยขั้นเด็ดขาด รวมถึงการพิจารณาพ้นสภาพการเป็นนักเรียน เพื่อรักษามาตรฐานการจัดการศึกษาของทางโรงเรียน<br><br>` +
-              `จึงใคร่ขอความร่วมมือท่านผู้ปกครองได้โปรดให้ความสำคัญและเข้าพบครูประจำชั้นโดยด่วนที่สุด เพื่อหาแนวทางแก้ไขปัญหาครั้งสุดท้ายนี้`;
+    subject = "เรื่อง แจ้งเตือนการขาดเรียนซ้ำซากและมาตรการทางวินัย";
+    bodyText = `ด้วยโรงเรียน${schoolName} ได้ติดตามตรวจสอบเวลาเรียนของ <b>${student.name}</b> นักเรียนระดับ <b>${fullClassName}</b> พบว่ามีสถิติการขาดเรียนรวมทั้งสิ้น <b>${absentCount} วัน</b> ซึ่งพฤติกรรมดังกล่าวถือเป็นการละเมิดระเบียบสถานศึกษาอย่างร้ายแรงและส่งผลกระทบต่อการเลื่อนชั้นปีโดยตรง<br><br>ตามระเบียบกระทรวงศึกษาธิการว่าด้วยการวัดและประเมินผลการเรียน กำหนดให้นักเรียนต้องมีเวลาเรียนไม่น้อยกว่าร้อยละ 80 ของเวลาเรียนทั้งหมด หากนักเรียนมีเวลาเรียนไม่ครบตามเกณฑ์ดังกล่าว โรงเรียนมีความจำเป็นต้องพิจารณาดำเนินการตามมาตรการทางวินัยขั้นเด็ดขาด รวมถึงการพิจารณาพ้นสภาพการเป็นนักเรียน`;
   } else if (level === 2) {
-    subject = "เรื่อง แจ้งเตือนการขาดเรียนอย่างเป็นทางการ";
-    content = `ด้วยโรงเรียน${schoolName} ได้ตรวจสอบเวลาเรียนของ <b>${student.name}</b> นักเรียนระดับ <b>${fullClassName}</b> พบว่ามีสถิติการขาดเรียนรวมทั้งสิ้น <b>${absentCount} วัน</b> ซึ่งเข้าใกล้เกณฑ์เฝ้าระวังที่ทางโรงเรียนกำหนดตามระเบียบกระทรวงศึกษาธิการว่าด้วยการวัดและประเมินผลการเรียน (ฉบับที่ 2) พ.ศ. 2561<br><br>` +
-              `การขาดเรียนดังกล่าวหากไม่ได้รับการแก้ไข อาจทำให้นักเรียนมีเวลาเรียนไม่ครบตามเกณฑ์ (ร้อยละ 80) ซึ่งจะส่งผลให้ไม่ได้รับการตัดสินผลการเรียน (ม.ส.) ในรายวิชานั้นๆ โรงเรียนจึงขอแจ้งให้ท่านทราบเพื่อดำเนินการแก้ไขพฤติกรรมการขาดเรียนของนักเรียนโดยเร่งด่วน เพื่อมิให้กระทบต่อสิทธิ์ในการเลื่อนชั้นปีของนักเรียนในอนาคต`;
+    bodyText = `ด้วยโรงเรียน${schoolName} ได้ติดตามตรวจสอบเวลาเรียนของ <b>${student.name}</b> นักเรียนระดับ <b>${fullClassName}</b> พบว่ามีสถิติการขาดเรียนรวมทั้งสิ้น <b>${absentCount} วัน</b> ซึ่งเข้าใกล้เกณฑ์เฝ้าระวังที่ทางโรงเรียนกำหนดตามระเบียบกระทรวงศึกษาธิการว่าด้วยการวัดและประเมินผลการเรียน<br><br>การขาดเรียนดังกล่าวอาจส่งผลให้นักเรียนมีเวลาเรียนไม่ครบตามเกณฑ์ (ร้อยละ 80) ซึ่งจะส่งผลให้ไม่ได้รับการตัดสินผลการเรียน (ม.ส.) ในรายวิชานั้นๆ โรงเรียนจึงขอแจ้งให้ท่านดำเนินการแก้ไขพฤติกรรมการขาดเรียนของนักเรียนโดยเร่งด่วนที่สุด`;
   } else {
-    subject = "เรื่อง แจ้งเตือนการขาดเรียนด้วยความห่วงใย";
-    content = `ด้วยโรงเรียน${schoolName} ได้ติดตามตรวจสอบเวลาเรียนของ <b>${student.name}</b> นักเรียนระดับ <b>${fullClassName}</b> พบว่านักเรียนมีการขาดเรียนรวมทั้งสิ้น <b>${absentCount} วัน</b> ทางโรงเรียนมีความห่วงใยเป็นอย่างยิ่งในผลสัมฤทธิ์ทางการเรียนและกระบวนการเรียนรู้ของนักเรียน<br><br>` +
-              `ตามระเบียบกระทรวงศึกษาธิการว่าด้วยการวัดและประเมินผลการเรียน กำหนดให้เวลาเรียนเป็นปัจจัยสำคัญในการตัดสินผลการเรียนของนักเรียน โรงเรียนจึงใคร่ขอความร่วมมือท่านผู้ปกครองได้โปรดสอบถามสาเหตุการขาดเรียน และช่วยกำกับดูแลให้นักเรียนมาเข้าเรียนอย่างสม่ำเสมอ เพื่อให้การเรียนของนักเรียนเป็นไปอย่างต่อเนื่องและเป็นไปตามเกณฑ์ที่สถานศึกษากำหนด`;
+    bodyText = `ด้วยโรงเรียน${schoolName} ได้ติดตามเวลาเรียนของ <b>${student.name}</b> นักเรียนระดับ <b>${fullClassName}</b> พบว่านักเรียนมีการขาดเรียนรวมทั้งสิ้น <b>${absentCount} วัน</b> ทางโรงเรียนมีความห่วงใยเป็นอย่างยิ่งต่อผลการเรียนของนักเรียน<br><br>จึงใคร่ขอความร่วมมือท่านผู้ปกครองได้โปรดให้คำแนะนำและกวดขันการมาเรียนของนักเรียนให้สม่ำเสมอ เพื่อให้การเรียนของนักเรียนเป็นไปอย่างต่อเนื่องและครบถ้วนตามเกณฑ์ที่สถานศึกษากำหนด`;
   }
 
   const printWindow = window.open('', '_blank');
-  if (!printWindow) { showToast('⚠️ กรุณาอนุญาต Popup', 'error'); return; }
-
   const html = `<!DOCTYPE html>
   <html lang="th">
   <head><meta charset="utf-8">
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
-      @page { size: A4 portrait; margin: 0; }
-      body { font-family: 'Sarabun', sans-serif; background: #eee; padding: 20px; display: flex; justify-content: center; }
-      .a4 { width: 210mm; height: 296mm; background: white; padding: 20mm 20mm 15mm 25mm; position: relative; font-size: 16px; line-height: 1.8; color: #000; }
-      .header-logo { text-align: center; margin-bottom: 5px; }
-      .header-logo img { width: 60px; }
-      .doc-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
-      .subject { margin: 20px 0; font-weight: 700; font-size: 18px; text-align:center; text-decoration: underline; }
-      .content { text-align: justify; margin-bottom: 40px; }
+      @page { size: A4 portrait; margin: 25mm; }
+      body { font-family: 'Sarabun', sans-serif; font-size: 16px; line-height: 1.8; color: #000; }
+      .garuda { text-align: center; margin-bottom: 10px; }
+      .garuda img { width: 60px; }
+      .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+      .subject { margin: 20px 0; font-weight: 700; }
+      .content { text-align: justify; margin-bottom: 30px; }
       .indent { text-indent: 50px; }
-      .signature-area { margin-top: 60px; display: flex; justify-content: space-between; }
+      .sig-area { margin-top: 50px; display: flex; justify-content: space-between; }
       .sig-box { text-align: center; width: 45%; }
-      .sig-line { border-bottom: 1px dotted #000; height: 35px; margin-bottom: 5px; }
-      .footer-section { position: absolute; bottom: 20mm; width: 165mm; border: 1px solid #000; padding: 15px; }
-      .tear-off-title { text-align: center; font-weight: 700; text-decoration: underline; margin-bottom: 10px; }
+      .sig-line { border-bottom: 1px dotted #000; height: 35px; }
+      .tear-line { border-top: 1px dashed #000; margin: 40px 0; text-align: center; font-size: 14px; color: #666; }
+      .response { margin-top: 20px; }
       .fill-line { border-bottom: 1px dotted #000; display: inline-block; }
-      @media print { body { background: white; padding: 0; } .a4 { box-shadow: none; } }
     </style>
   </head>
   <body>
-    <div class="a4">
-      <div class="header-logo"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Thai_government_Garuda_emblem_%28Version_2%29.svg/1200px-Thai_government_Garuda_emblem_%28Version_2%29.svg.png"></div>
-      <div class="doc-header">
-        <div>ที่ ศธ .................... / ...........</div>
-        <div>${schoolName}<br>วันที่ ${printDate}</div>
+    <div class="garuda"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Thai_government_Garuda_emblem_%28Version_2%29.svg/1200px-Thai_government_Garuda_emblem_%28Version_2%29.svg.png"></div>
+    <div class="header">
+      <div>ที่ ศธ .................... / ...........</div>
+      <div>โรงเรียนบ้านคลอง 14<br>วันที่ ${printDate}</div>
+    </div>
+    <div class="subject">${subject}</div>
+    <div>เรียน ผู้ปกครองของ <b>${student.name}</b></div>
+    <div class="content">
+      <p class="indent">${bodyText}</p>
+      <p class="indent">จึงเรียนมาเพื่อโปรดทราบและพิจารณาดำเนินการต่อไป</p>
+    </div>
+    <div class="sig-area">
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        ( ${currentUser.name} )<br>ครูประจำชั้น
       </div>
-      <div class="subject">${subject}</div>
-      <div>เรียน ผู้ปกครองของ <b>${student.name}</b></div>
-      <div class="content">
-        <p class="indent">${content}</p>
-        <p class="indent">จึงเรียนมาเพื่อโปรดทราบและดำเนินการในส่วนที่เกี่ยวข้องต่อไป</p>
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        ( นางสาวสู่ขวัญ ตลับนาค )<br>ผู้อำนวยการโรงเรียน${schoolName}
       </div>
-      
-      <div class="signature-area">
-        <div class="sig-box">
-          <div class="sig-line"></div>
-          <div>( ${currentUser.name} )</div>
-          <div>ครูประจำชั้น</div>
-        </div>
-        <div class="sig-box">
-          <div class="sig-line"></div>
-          <div>( นางสาวสู่ขวัญ ตลับนาค )</div>
-          <div>ผู้อำนวยการโรงเรียน${schoolName}</div>
-        </div>
-      </div>
-
-      <div class="footer-section">
-        <div class="tear-off-title">ส่วนที่ 2: แบบตอบรับสำหรับผู้ปกครอง</div>
-        <p>ข้าพเจ้า (นาย/นาง/นางสาว) <span class="fill-line" style="width:200px;"></span> ผู้ปกครองของ <b>${student.name}</b> นักเรียนชั้น <b>${fullClassName}</b> ได้รับทราบการแจ้งเตือนดังกล่าวแล้ว</p>
-        <p>สาเหตุการขาดเรียน: <span class="fill-line" style="width: 450px;"></span></p>
-        <div style="display:flex; justify-content:space-between; margin-top:20px;">
-          <div>ลงชื่อ ......................................... ผู้ปกครอง</div>
-          <div>วันที่ ........./........./.........</div>
-        </div>
+    </div>
+    <div class="tear-line">✂️ --------------------------- ตัดตามรอยปรุนี้ ---------------------------</div>
+    <div class="response">
+      <div style="font-weight:700; text-align:center; margin-bottom:15px;">แบบตอบรับการแจ้งเตือน</div>
+      <p>ข้าพเจ้า (นาย/นาง/นางสาว) <span class="fill-line" style="width:200px;"></span> ผู้ปกครองของ ${student.name} ได้รับทราบการแจ้งเตือนดังกล่าวแล้ว</p>
+      <p>สาเหตุการขาดเรียน: <span class="fill-line" style="width: 500px;"></span></p>
+      <div style="display:flex; justify-content:space-between; margin-top:20px;">
+        <div>ลงชื่อ ......................................... ผู้ปกครอง</div>
+        <div>วันที่ ........./........./.........</div>
       </div>
     </div>
     <script>window.onload = () => setTimeout(() => window.print(), 500);<\/script>
   </body>
   </html>`;
-
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
 }
+  
   // =============================================
 // ฟังก์ชันอัปเดตตัวเลขวันเรียนในหน้า ปฏิทิน
 // =============================================
