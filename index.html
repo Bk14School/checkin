@@ -247,6 +247,25 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
   .brand { width: 100%; margin-bottom: 5px; }
   .nav-info { width: 100%; }
 }
+
+  /* ===== PIN Pad ===== */
+.pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 240px; margin: 0 auto; }
+.pin-btn { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 16px; font-size: 1.6rem; font-weight: 700; color: #334155; padding: 12px 0; cursor: pointer; transition: all 0.1s; display: flex; align-items: center; justify-content: center; user-select: none; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+.pin-btn:active { transform: scale(0.92); background: #e0f2fe; border-color: #0ea5e9; color: #0ea5e9; }
+.pin-btn.action { font-size: 1.2rem; background: #f1f5f9; border-color: #e2e8f0; color: #64748b; }
+.pin-btn.action.del:active { background: #fee2e2; border-color: #ef4444; color: #ef4444; }
+.pin-btn.action.clear:active { background: #fef3c7; border-color: #f59e0b; color: #f59e0b; }
+
+.pin-display { display: flex; justify-content: center; gap: 16px; margin-bottom: 24px; min-height: 24px; }
+.pin-dot { width: 16px; height: 16px; border-radius: 50%; background: #e2e8f0; transition: all 0.2s; }
+.pin-dot.filled { background: var(--primary); transform: scale(1.2); box-shadow: 0 0 10px rgba(14,165,233,0.4); }
+.pin-dot.error { background: var(--danger); animation: shake 0.3s ease-in-out; }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
 </style>
 </head>
 <body>
@@ -296,12 +315,34 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
       <div class="login-logo">14</div>
       <h2>ระบบเช็คชื่อนักเรียน</h2>
       <p id="loginSchoolName">โรงเรียนบ้านคลอง 14</p>
-      <div class="mb-4 text-start">
-        <label class="form-label fw-semibold" style="font-size:.9rem;">รหัสผ่าน</label>
-<input type="password" class="form-control form-control-lg text-center" id="loginPass" placeholder="พิมพ์รหัสผ่านที่นี่..." autocomplete="current-password" onkeydown="if(event.key==='Enter') doLogin()">  
+      
+      <!-- *** ส่วนที่เป็น PIN Pad *** -->
+      <div class="mb-4 mt-4 text-center">
+        <!-- จุดแสดงรหัส 4 หลัก -->
+        <div class="pin-display" id="pinDisplay">
+          <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+        </div>
+        <input type="hidden" id="loginPass" value="">
+        
+        <!-- แป้นตัวเลข -->
+        <div class="pin-pad">
+          <div class="pin-btn" onclick="addPin('1')">1</div>
+          <div class="pin-btn" onclick="addPin('2')">2</div>
+          <div class="pin-btn" onclick="addPin('3')">3</div>
+          <div class="pin-btn" onclick="addPin('4')">4</div>
+          <div class="pin-btn" onclick="addPin('5')">5</div>
+          <div class="pin-btn" onclick="addPin('6')">6</div>
+          <div class="pin-btn" onclick="addPin('7')">7</div>
+          <div class="pin-btn" onclick="addPin('8')">8</div>
+          <div class="pin-btn" onclick="addPin('9')">9</div>
+          <div class="pin-btn action clear" onclick="clearPin()">C</div>
+          <div class="pin-btn" onclick="addPin('0')">0</div>
+          <div class="pin-btn action del" onclick="delPin()">⌫</div>
+        </div>
       </div>
-      <button class="btn-login" onclick="doLogin()">เข้าสู่ระบบ</button>
-      <button class="btn-dashboard" onclick="openDashboard()">📊 สถิติประจำวัน</button>
+      <!-- *************************** -->
+
+      <button class="btn-dashboard" onclick="openDashboard()" style="margin-top:0;">📊 สถิติภาพรวมประจำวัน</button>
       <p class="text-muted mt-4 mb-0" style="font-size:.8rem;">ปีการศึกษา: <span id="loginYear" class="fw-bold text-dark">...</span></p>
     </div>
   </div>
@@ -694,23 +735,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 // =============================================
 // Login / Navigation Logic
 // =============================================
-async function doLogin() {
-  const pw = document.getElementById('loginPass').value.trim();
-  if (!pw) { showToast('กรุณากรอกรหัสผ่าน','error'); return; }
-  
-  showProgress('กำลังตรวจสอบรหัสผ่าน...');
-  await new Promise(resolve => setTimeout(resolve, 50));
-  
-  try {
-    currentUser = await api('login', { password: pw });
-    showProgress('กำลังเตรียมข้อมูลนักเรียน...');
-    await new Promise(resolve => setTimeout(resolve, 50));
-    await afterLogin(); 
-  } catch(e) {
-    hideProgress();
-    showToast(e.message,'error');
-  }
-}
+
 
 async function afterLogin() {
   document.getElementById('teacherBadge').textContent = `🎓 ${currentUser.name} • ${currentUser.isAdmin ? 'ผู้บริหาร' : currentUser.classroom}`;
@@ -751,45 +776,47 @@ async function afterLogin() {
   openCalendarPage(); 
 }
 
-function logout() {
-  // 1. เคลียร์ข้อมูลในหน่วยความจำ
-  currentUser = null; 
-  calStudents =[]; 
-  calDayData = {}; 
-  reportData = null;
-
-  // 2. ซ่อนเมนูด้านบนทั้งหมด
-  const hideElements =[
-    'teacherBadge', 
-    'navTermSelector', 
-    'btnNavDash', 
-    'btnNav3', 
-    'btnNav2', 
-    'btnNavConfig', 
-    'btnLogout', 
-    'btnNavLogin'
-  ];
+async function doLogin() {
+  const pw = document.getElementById('loginPass').value.trim();
+  if (!pw) { showToast('กรุณากรอกรหัสผ่าน','error'); return; }
   
-  hideElements.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.style.display = 'none';
+  showProgress('กำลังตรวจสอบรหัสผ่าน...');
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  try {
+    currentUser = await api('login', { password: pw });
+    showProgress('กำลังเตรียมข้อมูลนักเรียน...');
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // เข้าระบบสำเร็จ เคลียร์รหัสผ่านทิ้งเผื่อรอบหน้า
+    clearPin(); 
+    
+    await afterLogin(); 
+  } catch(e) {
+    hideProgress();
+    showToast(e.message,'error');
+    
+    // ลูกเล่น: ถ้ารหัสผิด ให้จุดสั่นสีแดง และล้างรหัสให้กดใหม่ทันที
+    if (typeof updatePinDisplay === 'function') {
+      updatePinDisplay(true);
+      setTimeout(clearPin, 400);
     }
-  });
-
-  // 3. เคลียร์ช่องรหัสผ่าน (รองรับทั้งแบบกล่องข้อความและแบบ PIN Pad)
-  const passInput = document.getElementById('loginPass');
-  if (passInput) passInput.value = '';
-  
-  if (typeof clearPin === 'function') {
-    clearPin();
   }
-
-  // 4. สลับกลับไปหน้า Login และแจ้งเตือน
-  showPage('loginPage');
-  showToast('ออกจากระบบแล้ว', 'info');
 }
 
+function logout() {
+  currentUser = null; calStudents =[]; calDayData = {}; reportData = null;
+  const safe = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
+  
+  safe('teacherBadge', el => el.style.display='none');['btnNavDash','btnNav2','btnNav3','btnLogout','btnNavConfig','btnNavLogin','navTermSelector'].forEach(id => safe(id, el => el.style.display='none'));
+  
+  // เคลียร์แป้นกดเวลากดออกจากระบบ
+  if (typeof clearPin === 'function') clearPin();
+  else safe('loginPass', el => { el.value=''; });
+  
+  showPage('loginPage');
+  showToast('ออกจากระบบแล้ว','info');
+}
 function goBackToLogin() {
   document.getElementById('btnNavLogin').style.display = 'none';
   showPage('loginPage');
@@ -2588,6 +2615,51 @@ function updateCalDaysSummary() {
     <span>📅 <b>วันเรียนเดือนนี้ :</b> <span style="font-size:1.1rem; font-weight:800; color:#0369a1;">${currentMonthDays}</span> วัน</span>
   `;
   summaryEl.style.display = 'flex';
+}
+
+  // =============================================
+// PIN Pad Logic (แป้นกดรหัสผ่านแบบ ATM)
+// =============================================
+let currentPin = "";
+const MAX_PIN_LENGTH = 4; // รหัสผ่านครูมี 4 หลัก
+
+function updatePinDisplay(isError = false) {
+  const dots = document.querySelectorAll('.pin-dot');
+  dots.forEach((dot, index) => {
+    if (isError) {
+      dot.classList.add('error');
+      setTimeout(() => dot.classList.remove('error'), 300);
+    } else {
+      dot.classList.remove('error');
+      if (index < currentPin.length) dot.classList.add('filled');
+      else dot.classList.remove('filled');
+    }
+  });
+  document.getElementById('loginPass').value = currentPin;
+}
+
+function addPin(num) {
+  if (currentPin.length < MAX_PIN_LENGTH) {
+    currentPin += num;
+    updatePinDisplay();
+    
+    // ถ้ารหัสครบ 4 หลัก ให้เข้าสู่ระบบอัตโนมัติ ไม่ต้องกด Enter
+    if (currentPin.length === MAX_PIN_LENGTH) {
+      setTimeout(() => { doLogin(); }, 150); 
+    }
+  }
+}
+
+function delPin() {
+  if (currentPin.length > 0) {
+    currentPin = currentPin.slice(0, -1);
+    updatePinDisplay();
+  }
+}
+
+function clearPin() {
+  currentPin = "";
+  updatePinDisplay();
 }
 </script>
 </body>
