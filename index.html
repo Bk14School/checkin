@@ -409,6 +409,12 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
           <select id="calClassroom" onchange="loadCalendarData()" style="border-radius:8px;border:1.5px solid #cbd5e1;padding:5px 10px;font-family:inherit;font-size:.9rem;"></select>
         </div>
       </div>
+      <!-- เพิ่มกล่องสรุปวันเรียนตรงนี้ (แทรกไว้เหนือบรรทัดฟิลเตอร์) -->
+      <div id="calDaysSummaryText" class="w-100 mb-2 px-3 py-2 rounded-3" style="display:none; background: #f0f9ff; border: 1px solid #bae6fd; color: #0284c7; font-size: 0.9rem; justify-content: space-between; align-items: center; flex-wrap: wrap;"></div>
+      
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="d-flex gap-2 flex-wrap" id="calFilters">
+          <span style="font-size:0.8rem; color:#64748b; align-self:center; margin-right:4px;">ฟิลเตอร์จุดสี:</span>
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div class="d-flex gap-2 flex-wrap" id="calFilters">
           <span style="font-size:0.8rem; color:#64748b; align-self:center; margin-right:4px;">ฟิลเตอร์จุดสี:</span>
@@ -1661,6 +1667,8 @@ function renderCalendar() {
 
   document.getElementById('calGrid').innerHTML = html;
   renderStudentTimeline();
+    updateCalDaysSummary();
+
 }
 
 function openHolidayModal(dateStr) {
@@ -2378,7 +2386,44 @@ function handleMonthlyPrint() {
   openPrint(html);
 }
 
+// =============================================
+// ฟังก์ชันอัปเดตตัวเลขวันเรียนในหน้า ปฏิทิน
+// =============================================
+function updateCalDaysSummary() {
+  const stats = typeof calculateSchoolDays === 'function' ? calculateSchoolDays() : null;
+  const summaryEl = document.getElementById('calDaysSummaryText');
+  if (!summaryEl) return;
 
+  // ถ้าคำนวณไม่ได้ หรือยังไม่ตั้งวันที่ ให้ซ่อนกล่องไว้
+  if (!stats || stats.total === 0 || stats.error === 'nodate') {
+    summaryEl.style.display = 'none';
+    return;
+  }
+
+  // หาวันเรียนของเดือนที่กำลังแสดงอยู่ในปฏิทิน
+  const monthKey = pad(calMonth) + '-' + calYear;
+  const currentMonthDays = stats.byMonth[monthKey] ? stats.byMonth[monthKey].count : 0;
+
+  // 1. อัปเดตข้อความใน Dropdown (ใส่จำนวนวันในวงเล็บให้แต่ละเดือน)
+  const dropdown = document.getElementById('calMonthDropdown');
+  if (dropdown) {
+    Array.from(dropdown.options).forEach(opt => {
+      const val = opt.value; 
+      const p = val.split('-');
+      const mKey = pad(p[0]) + '-' + p[1];
+      const mDays = stats.byMonth[mKey] ? stats.byMonth[mKey].count : 0;
+      const monthName = THAI_MONTHS_CAL[parseInt(p[0])];
+      opt.text = `${monthName} ${p[1]} (${mDays} วัน)`;
+    });
+  }
+
+  // 2. แสดงสรุปด้านบนปฏิทิน
+  summaryEl.innerHTML = `
+    <span>🏫 <b>รวมวันเรียนเทอม ${currentTerm}/${currentYear} :</b> ${stats.total} วัน</span>
+    <span>📅 <b>วันเรียนเดือนนี้ :</b> <span style="font-size:1.1rem; font-weight:800; color:#0369a1;">${currentMonthDays}</span> วัน</span>
+  `;
+  summaryEl.style.display = 'flex';
+}
 </script>
 </body>
 </html>
