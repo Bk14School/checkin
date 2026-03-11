@@ -1930,51 +1930,57 @@ function toggleStudentPanel() {
 
 function renderStudentTimeline() {
   const panel = document.getElementById('calStudentTimeline');
-  if (!panel || document.getElementById('calStudentPanel').style.display!=='block') return;
+  if (!panel || document.getElementById('calStudentPanel').style.display !== 'block') return;
 
-  const q = (document.getElementById('calStudentSearch').value||'').toLowerCase();
-  const filtered = q ? calStudents.filter(s=>s.name.toLowerCase().includes(q)||s.studentId.includes(q)) : calStudents;
+  const q = (document.getElementById('calStudentSearch').value || '').toLowerCase();
+  const filtered = q ? calStudents.filter(s => s.name.toLowerCase().includes(q) || s.studentId.includes(q)) : calStudents;
 
-  if (!filtered.length) { panel.innerHTML='<div class="text-muted" style="font-size:.85rem;">ไม่พบนักเรียน</div>'; return; }
+  if (!filtered.length) { panel.innerHTML = '<div class="text-muted" style="font-size:.85rem;">ไม่พบนักเรียน</div>'; return; }
 
-  const daysInMonth = new Date(calYear-543, calMonth, 0).getDate();
-  const allDates    =[];
-  for (let d=1; d<=daysInMonth; d++) allDates.push(pad(d)+'/'+pad(calMonth)+'/'+calYear);
-  const schoolDates = allDates.filter(ds=>!calHolidays[ds]||calHolidays[ds].type!=='holiday');
+  const daysInMonth = new Date(calYear - 543, calMonth, 0).getDate();
+  const allDates = [];
+  for (let d = 1; d <= daysInMonth; d++) allDates.push(pad(d) + '/' + pad(calMonth) + '/' + calYear);
+  const schoolDates = allDates.filter(ds => !calHolidays[ds] || calHolidays[ds].type !== 'holiday');
 
-  const colorsMap = {'ม':'#22c55e','ข':'#ef4444','ล':'#f59e0b','ป':'#be185d','ส':'#818cf8','':''};
-  const bgMap     = {'ม':'#d1fae5','ข':'#fee2e2','ล':'#fef3c7','ป':'#fdf2f8','ส':'#e0e7ff','':'#f1f5f9'};
-  const streakMap = calcStreakMap();
+  const colorsMap = { 'ม': '#22c55e', 'ข': '#ef4444', 'ล': '#f59e0b', 'ป': '#be185d', 'ส': '#818cf8', '': '' };
+  const bgMap = { 'ม': '#d1fae5', 'ข': '#fee2e2', 'ล': '#fef3c7', 'ป': '#fdf2f8', 'ส': '#e0e7ff', '': '#f1f5f9' };
 
   panel.innerHTML = filtered.map(s => {
-    let p=0,a=0,total=0; let maxStreak=0, curStreak=0;
+    let p = 0, a = 0, total = 0;
     const dots = schoolDates.map(ds => {
       const hol = calHolidays[ds];
-      if (hol?.type==='holiday') return `<div class="cal-stu-day-dot" style="background:#e2e8f0;color:#94a3b8;" title="${ds}">-</div>`;
-      const v = (calDayData[ds]||{})[s.studentId]||'';
-      if(v==='ม'){p++;total++;} else if(v==='ข'){a++;total++;curStreak++;maxStreak=Math.max(maxStreak,curStreak);}
-      else if(v){total++;curStreak=0;} else curStreak=0;
-      
-      const bg  = bgMap[v]||'#f8fafc'; const clr = colorsMap[v]||'#9ca3af';
-      const ring = streakMap[ds]&&v==='ข'?' outline:2px solid #ef4444;':' ';
+      if (hol?.type === 'holiday') return `<div class="cal-stu-day-dot" style="background:#e2e8f0;color:#94a3b8;" title="${ds}">-</div>`;
+      const v = (calDayData[ds] || {})[s.studentId] || '';
+      if (v === 'ม') { p++; total++; } else if (v === 'ข') { a++; total++; }
+      else if (v) { total++; }
+
+      const bg = bgMap[v] || '#f8fafc'; const clr = colorsMap[v] || '#9ca3af';
       const opacity = (v && !currentFilters[v]) ? 'opacity: 0.2;' : 'opacity: 1;';
-      return `<div class="cal-stu-day-dot" style="background:${bg};color:${clr};${ring}${opacity}" title="${ds}: ${v||'ยังไม่เช็ค'}" onclick="openCalDay('${ds}')">${v||'?'}</div>`;
+      return `<div class="cal-stu-day-dot" style="background:${bg};color:${clr};${opacity}" title="${ds}: ${v || 'ยังไม่เช็ค'}" onclick="openCalDay('${ds}')">${v || '?'}</div>`;
     }).join('');
 
-    const pct  = total?Math.round(p/total*100):0;
-    let warningAction = '';
-    if (maxStreak >= 3 || (total > 0 && pct < 80)) {
-      const reason = maxStreak >= 3 ? `ขาด ${maxStreak} วันติด` : `เวลาเรียน ${pct}%`;
-      warningAction = `<span style="font-size:.7rem;background:#fee2e2;color:#991b1b;border-radius:8px;padding:1px 6px;margin-left:6px;">⚠️ ${reason}</span><button class="btn-print-warn ms-2" onclick="printWarningLetter('${s.studentId}')">🖨️ พิมพ์ใบเตือน</button>`;
+    const pct = total ? Math.round(p / total * 100) : 0;
+    
+    // 🟢 ระบบระดับการเตือน
+    let warningBtn = '';
+    if (a >= 15) {
+      warningBtn = `<button class="btn-print-warn" style="background:#7c3aed; color:#fff;" onclick="printWarningLetter('${s.studentId}', 3)">⚠️ เตือนระดับ 3 (ขั้นเด็ดขาด)</button>`;
+    } else if (a >= 8) {
+      warningBtn = `<button class="btn-print-warn" style="background:#b91c1c; color:#fff;" onclick="printWarningLetter('${s.studentId}', 2)">⚠️ เตือนระดับ 2 (เป็นทางการ)</button>`;
+    } else if (a >= 3) {
+      warningBtn = `<button class="btn-print-warn" onclick="printWarningLetter('${s.studentId}', 1)">⚠️ เตือนระดับ 1 (ห่วงใย)</button>`;
     }
 
     return `<div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="font-size:.88rem;font-weight:600;">${s.name}</span><span style="font-size:.75rem;color:${pct<80?'#dc2626':'#16a34a'};font-weight:700;">${pct}%</span><span style="font-size:.75rem;color:#94a3b8;">มา ${p} / ขาด ${a}</span>${warningAction}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="font-size:.88rem;font-weight:600;">${s.name}</span>
+        <span style="font-size:.75rem;color:#94a3b8;">มา ${p} / ขาด ${a}</span>
+        ${warningBtn}
+      </div>
       <div class="cal-stu-timeline">${dots}</div>
     </div>`;
   }).join('');
 }
-
 function printCalMonth() {
   if (!calStudents.length) { showToast('ยังไม่มีข้อมูล กรุณาโหลดปฏิทินก่อน','error'); return; }
   const cls = document.getElementById('calClassroom').value;
@@ -2445,7 +2451,7 @@ function handleMonthlyPrint() {
     const [month, year] = val.split('-');
     printMonthlyHomeroomReport(month, year);
 }
-function printWarningLetter(studentId) {
+function printWarningLetter(studentId, level) {
   const student = calStudents.find(s => s.studentId === studentId);
   if (!student) return;
   
@@ -2455,12 +2461,31 @@ function printWarningLetter(studentId) {
   const docYear = currentYear || new Date().getFullYear() + 543;
   const term = currentTerm || "1";
 
-  // คำนวณจำนวนวันที่ขาด
+  // คำนวณจำนวนวันที่ขาดจริง
   let absentCount = 0;
   const daysInMonth = new Date(calYear-543, calMonth, 0).getDate();
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = pad(d) + '/' + pad(calMonth) + '/' + calYear;
     if ((calDayData[ds] || {})[student.studentId] === 'ข') absentCount++;
+  }
+
+  // กำหนดเนื้อหาตามระดับความรุนแรง
+  let title = "แจ้งเตือนการขาดเรียน";
+  let content = "";
+  let urgentColor = "#0ea5e9";
+
+  if (level === 3) {
+    title = "ประกาศแจ้งเตือนครั้งสุดท้าย (มาตรการขั้นเด็ดขาด)";
+    urgentColor = "#b91c1c";
+    content = `พฤติกรรมการขาดเรียนของนักเรียนในความดูแลของท่านเข้าสู่ขั้นวิกฤต ซึ่งส่งผลให้เสี่ยงต่อการขาดคุณสมบัติในการประเมินผลการเรียนตามระเบียบกระทรวงศึกษาธิการ โดยโรงเรียนขอแจ้งว่าหากยังมีพฤติกรรมดังกล่าว โรงเรียนมีความจำเป็นต้องพิจารณามาตรการทางวินัยขั้นสูงสุด รวมถึงการพิจารณาพ้นสภาพการเป็นนักเรียน`;
+  } else if (level === 2) {
+    title = "หนังสือแจ้งเตือนการขาดเรียน (เป็นทางการ)";
+    urgentColor = "#b45309";
+    content = `จากการตรวจสอบพบว่านักเรียนมีการขาดเรียนรวมทั้งสิ้น ${absentCount} วัน ซึ่งตามระเบียบกระทรวงศึกษาธิการ นักเรียนต้องมีเวลาเรียนไม่น้อยกว่าร้อยละ 80 ของเวลาเรียนทั้งหมด พฤติกรรมนี้ส่งผลโดยตรงต่อสิทธิ์ในการสอบวัดผลปลายภาคเรียน ทางโรงเรียนจึงขอให้ท่านดำเนินการแก้ไขปัญหาดังกล่าวโดยด่วนที่สุด`;
+  } else {
+    title = "แจ้งเตือนด้วยความห่วงใย";
+    urgentColor = "#059669";
+    content = `ทางโรงเรียนพบว่านักเรียนเริ่มมีสถิติการขาดเรียนรวม ${absentCount} วัน ซึ่งอาจส่งผลกระทบต่อผลการเรียนในอนาคต โรงเรียนจึงใคร่ขอความร่วมมือท่านผู้ปกครองในการสอบถามสาเหตุ และดูแลให้นักเรียนมาเรียนอย่างสม่ำเสมอ เพื่อให้การเรียนของนักเรียนเป็นไปอย่างต่อเนื่อง`;
   }
 
   const printWindow = window.open('', '_blank');
@@ -2474,16 +2499,16 @@ function printWarningLetter(studentId) {
       @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
       @page { size: A4 portrait; margin: 0; }
       body { font-family: 'Sarabun', sans-serif; background: #eee; padding: 20px; display: flex; justify-content: center; }
-      .a4 { width: 210mm; height: 296mm; background: white; padding: 20mm 20mm 15mm 25mm; position: relative; font-size: 16px; line-height: 1.6; }
+      .a4 { width: 210mm; height: 296mm; background: white; padding: 20mm 20mm 15mm 25mm; font-size: 16px; line-height: 1.6; position: relative; }
       .header-logo { text-align: center; margin-bottom: 10px; }
       .header-logo img { width: 70px; }
-      .doc-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
-      .subject { margin: 20px 0; font-weight: bold; }
+      .doc-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+      .subject { margin: 20px 0; font-weight: bold; font-size: 18px; color: ${urgentColor}; text-decoration: underline; }
       .content { text-align: justify; margin-bottom: 20px; }
       .indent { text-indent: 50px; }
       .signature-area { margin-top: 30px; display: flex; justify-content: space-between; }
       .sig-box { text-align: center; width: 45%; }
-      .sig-line { border-bottom: 1px dotted #000; height: 40px; margin-bottom: 5px; }
+      .sig-line { border-bottom: 1px dotted #000; height: 35px; margin-bottom: 5px; }
       .tear-off { border-top: 2px dashed #000; margin-top: 30px; padding-top: 20px; font-size: 14px; }
       .tear-off h4 { text-align: center; text-decoration: underline; margin-bottom: 15px; }
       @media print { body { background: white; padding: 0; } .a4 { box-shadow: none; } }
@@ -2496,11 +2521,10 @@ function printWarningLetter(studentId) {
         <div>ที่ ศธ .................... / ...........</div>
         <div>${schoolName}<br>วันที่ ${printDate}</div>
       </div>
-      <div class="subject">เรื่อง แจ้งเตือนการขาดเรียนและขอความร่วมมือผู้ปกครอง</div>
-      <div>เรียน ผู้ปกครองของ ${student.name}</div>
+      <div class="subject">เรื่อง ${title}</div>
+      <div>เรียน ผู้ปกครองของ <b>${student.name}</b></div>
       <div class="content">
-        <p class="indent">ด้วยทางโรงเรียน${schoolName} ได้ตรวจสอบเวลาเรียนของนักเรียนในภาคเรียนที่ ${term} ปีการศึกษา ${docYear} พบว่า <b>${student.name}</b> นักเรียนชั้น <b>${cls}</b> มีสถิติการขาดเรียนรวมทั้งสิ้น <b>${absentCount} วัน</b> ซึ่งพฤติกรรมการขาดเรียนดังกล่าว ส่งผลกระทบต่อผลสัมฤทธิ์ทางการเรียนและอาจทำให้นักเรียนมีเวลาเรียนไม่ครบตามเกณฑ์ที่สถานศึกษากำหนด</p>
-        <p class="indent">ทางโรงเรียนมีความห่วงใยในอนาคตทางการศึกษาของนักเรียน จึงขอความอนุเคราะห์จากท่านผู้ปกครองได้โปรดให้คำแนะนำและกวดขันการมาเรียนของนักเรียนให้สม่ำเสมอ หากมีเหตุจำเป็นที่ทำให้นักเรียนไม่สามารถมาเรียนได้ กรุณาแจ้งให้ครูประจำชั้นทราบโดยเร็ว เพื่อทางโรงเรียนจะได้ร่วมกันหาแนวทางช่วยเหลือและแก้ไขปัญหาต่อไป</p>
+        <p class="indent">${content}</p>
       </div>
       
       <div class="signature-area">
@@ -2517,12 +2541,12 @@ function printWarningLetter(studentId) {
       </div>
 
       <div class="tear-off">
-        <h4>ส่วนที่ 2: แบบตอบรับสำหรับผู้ปกครอง</h4>
-        <p>ข้าพเจ้า (....................................................) ผู้ปกครองของ ${student.name} ได้รับทราบการแจ้งเตือนเรื่องการขาดเรียนจำนวน ${absentCount} วัน เรียบร้อยแล้ว</p>
+        <h4>ส่วนที่ 2: แบบตอบรับการแจ้งเตือน</h4>
+        <p>ข้าพเจ้า (นาย/นาง/นางสาว) .................................................... ผู้ปกครองของ <b>${student.name}</b> นักเรียนชั้น <b>${cls}</b> ได้รับทราบการแจ้งเตือนเรื่องการขาดเรียนรวม ${absentCount} วัน และรับทราบถึงผลกระทบทางการเรียนเรียบร้อยแล้ว</p>
         <p>สาเหตุการขาดเรียน: .........................................................................................................</p>
-        <div style="display:flex; justify-content:space-around; margin-top:20px;">
-          <div>ลงชื่อ.................................. ผู้ปกครอง</div>
-          <div>วันที่........./........./.........</div>
+        <div style="display:flex; justify-content:space-between; margin-top:20px;">
+          <div>ลงชื่อ ......................................... ผู้ปกครอง</div>
+          <div>วันที่ ........./........./.........</div>
         </div>
       </div>
     </div>
@@ -2534,7 +2558,7 @@ function printWarningLetter(studentId) {
   printWindow.document.write(html);
   printWindow.document.close();
 }
-// =============================================
+  // =============================================
 // ฟังก์ชันอัปเดตตัวเลขวันเรียนในหน้า ปฏิทิน
 // =============================================
 function updateCalDaysSummary() {
