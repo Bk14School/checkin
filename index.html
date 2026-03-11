@@ -2455,97 +2455,78 @@ function printWarningLetter(studentId) {
   const docYear = currentYear || new Date().getFullYear() + 543;
   const term = currentTerm || "1";
 
-  // 🟢 คำนวณจำนวนวันที่ขาดเรียน
+  // คำนวณจำนวนวันที่ขาด
   let absentCount = 0;
   const daysInMonth = new Date(calYear-543, calMonth, 0).getDate();
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = pad(d) + '/' + pad(calMonth) + '/' + calYear;
-    if ((calDayData[ds] || {})[student.studentId] === 'ข') {
-      absentCount++;
-    }
+    if ((calDayData[ds] || {})[student.studentId] === 'ข') absentCount++;
   }
 
   const printWindow = window.open('', '_blank');
-  if (!printWindow) { 
-    showToast('⚠️ กรุณาอนุญาต Popup ในเบราว์เซอร์ก่อนทำการพิมพ์', 'error'); 
-    return; 
-  }
+  if (!printWindow) { showToast('⚠️ กรุณาอนุญาต Popup', 'error'); return; }
 
   const html = `<!DOCTYPE html>
   <html lang="th">
   <head>
     <meta charset="utf-8">
-    <title>หนังสือแจ้งเตือนการขาดเรียน - ${student.name}</title>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
       @page { size: A4 portrait; margin: 0; }
-      * { box-sizing: border-box; }
-      body { font-family: 'Sarabun', sans-serif; margin: 0; padding: 0; background: #525659; display: flex; justify-content: center; }
-      .a4-container { width: 210mm; height: 296mm; background: white; padding: 20mm 20mm 15mm 20mm; overflow: hidden; color: #000; font-size: 15px; line-height: 1.5; }
-      .header-wrap { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: flex-start; }
-      .doc-no { width: 30%; font-size: 15px; }
-      .garuda-placeholder { width: 40%; text-align: center; }
-      .garuda-img { width: 50px; height: auto; display: inline-block; margin-bottom: 10px; }
-      .school-address { width: 30%; font-size: 15px; text-align: right; }
-      .date-row { text-align: center; margin-bottom: 25px; padding-left: 20%; }
-      .subject-row { margin-bottom: 15px; }
-      .subject-row span { font-weight: 700; display: inline-block; width: 60px; }
-      .content { margin-top: 25px; }
-      .content p { text-indent: 50px; margin-top: 0; margin-bottom: 12px; text-align: justify; }
-      .content .close-word { text-indent: 50px; margin-top: 20px; margin-bottom: 30px; }
-      .signature-wrap { display: flex; justify-content: flex-end; margin-top: 30px; }
-      .sig-box { text-align: center; width: 300px; }
-      .sig-box .yours-truly { margin-bottom: 40px; text-align: left; padding-left: 20px; }
-      .cut-line { border-top: 1px dashed #666; margin: 35px 0 20px 0; text-align: center; position: relative; }
-      .cut-line span { background: #fff; padding: 0 10px; color: #666; font-size: 12px; position: relative; top: -10px; }
-      .tear-off { font-size: 14.5px; }
-      .tear-off-title { text-align: center; font-weight: 700; font-size: 16px; margin-bottom: 15px; text-decoration: underline; }
-      .fill-line { border-bottom: 1px dotted #000; display: inline-block; }
-      .tear-off p { margin: 10px 0; line-height: 1.8; }
-      .tear-off-sig { display: flex; justify-content: space-between; margin-top: 25px; }
-      .tear-sig-box { text-align: center; width: 45%; }
-      @media print { body { background: white; } .a4-container { box-shadow: none; padding: 15mm; height: 100vh; } }
+      body { font-family: 'Sarabun', sans-serif; background: #eee; padding: 20px; display: flex; justify-content: center; }
+      .a4 { width: 210mm; height: 296mm; background: white; padding: 20mm 20mm 15mm 25mm; position: relative; font-size: 16px; line-height: 1.6; }
+      .header-logo { text-align: center; margin-bottom: 10px; }
+      .header-logo img { width: 70px; }
+      .doc-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
+      .subject { margin: 20px 0; font-weight: bold; }
+      .content { text-align: justify; margin-bottom: 20px; }
+      .indent { text-indent: 50px; }
+      .signature-area { margin-top: 30px; display: flex; justify-content: space-between; }
+      .sig-box { text-align: center; width: 45%; }
+      .sig-line { border-bottom: 1px dotted #000; height: 40px; margin-bottom: 5px; }
+      .tear-off { border-top: 2px dashed #000; margin-top: 30px; padding-top: 20px; font-size: 14px; }
+      .tear-off h4 { text-align: center; text-decoration: underline; margin-bottom: 15px; }
+      @media print { body { background: white; padding: 0; } .a4 { box-shadow: none; } }
     </style>
   </head>
   <body>
-    <div class="a4-container">
-      <div class="header-wrap">
-        <div class="doc-no">ที่ ศธ .................... / ...........</div>
-        <div class="garuda-placeholder"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Thai_government_Garuda_emblem_%28Version_2%29.svg/1200px-Thai_government_Garuda_emblem_%28Version_2%29.svg.png" class="garuda-img" alt="ครุฑ"></div>
-        <div class="school-address">${schoolName}<br>.......................................................</div>
+    <div class="a4">
+      <div class="header-logo"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Thai_government_Garuda_emblem_%28Version_2%29.svg/1200px-Thai_government_Garuda_emblem_%28Version_2%29.svg.png"></div>
+      <div class="doc-header">
+        <div>ที่ ศธ .................... / ...........</div>
+        <div>${schoolName}<br>วันที่ ${printDate}</div>
       </div>
-      <div class="date-row">วันที่ ${printDate}</div>
-      <div class="subject-row"><span>เรื่อง</span> แจ้งพฤติกรรมการขาดเรียนของนักเรียน</div>
-      <div class="subject-row"><span>เรียน</span> ผู้ปกครองของ ${student.name}</div>
+      <div class="subject">เรื่อง แจ้งเตือนการขาดเรียนและขอความร่วมมือผู้ปกครอง</div>
+      <div>เรียน ผู้ปกครองของ ${student.name}</div>
       <div class="content">
-        <p>ด้วยทาง ${schoolName} ได้ทำการติดตามการเข้าชั้นเรียนของนักเรียนในภาคเรียนที่ ${term} ปีการศึกษา ${docYear} พบว่า <b>${student.name}</b> นักเรียนระดับชั้น <b>${cls}</b> ซึ่งอยู่ในความดูแลของท่าน มีสถิติการขาดเรียนในเดือนนี้เป็นจำนวน <b>${absentCount} วัน</b> ซึ่งเกินเกณฑ์ที่ทางโรงเรียนกำหนด</p>
-        <p>ตามระเบียบกระทรวงศึกษาธิการว่าด้วยการวัดและประเมินผลการเรียน กำหนดให้นักเรียนต้องมีเวลาเรียนไม่น้อยกว่าร้อยละ 80 ของเวลาเรียนทั้งหมด จึงจะมีสิทธิ์เข้ารับการสอบวัดผลปลายภาคเรียน การขาดเรียนดังกล่าวอาจส่งผลกระทบโดยตรงต่อผลการเรียน และอาจทำให้หมดสิทธิ์สอบ (ม.ส.) ในภาคเรียนนี้</p>
-        <p>ในการนี้ ทางโรงเรียนจึงใคร่ขอความร่วมมือจากท่านผู้ปกครอง ได้โปรดกวดขัน ดูแล และสอบถามสาเหตุการขาดเรียนของนักเรียน พร้อมทั้งกรอกรายละเอียดในแบบตอบรับด้านล่าง และให้นักเรียนนำมาส่งคืนครูประจำชั้นภายใน 3 วันทำการ นับจากวันที่ได้รับจดหมายฉบับนี้</p>
-        <div class="close-word">จึงเรียนมาเพื่อโปรดทราบและพิจารณาดำเนินการร่วมกัน</div>
+        <p class="indent">ด้วยทางโรงเรียน${schoolName} ได้ตรวจสอบเวลาเรียนของนักเรียนในภาคเรียนที่ ${term} ปีการศึกษา ${docYear} พบว่า <b>${student.name}</b> นักเรียนชั้น <b>${cls}</b> มีสถิติการขาดเรียนรวมทั้งสิ้น <b>${absentCount} วัน</b> ซึ่งพฤติกรรมการขาดเรียนดังกล่าว ส่งผลกระทบต่อผลสัมฤทธิ์ทางการเรียนและอาจทำให้นักเรียนมีเวลาเรียนไม่ครบตามเกณฑ์ที่สถานศึกษากำหนด</p>
+        <p class="indent">ทางโรงเรียนมีความห่วงใยในอนาคตทางการศึกษาของนักเรียน จึงขอความอนุเคราะห์จากท่านผู้ปกครองได้โปรดให้คำแนะนำและกวดขันการมาเรียนของนักเรียนให้สม่ำเสมอ หากมีเหตุจำเป็นที่ทำให้นักเรียนไม่สามารถมาเรียนได้ กรุณาแจ้งให้ครูประจำชั้นทราบโดยเร็ว เพื่อทางโรงเรียนจะได้ร่วมกันหาแนวทางช่วยเหลือและแก้ไขปัญหาต่อไป</p>
       </div>
-      <div class="signature-wrap">
+      
+      <div class="signature-area">
         <div class="sig-box">
-          <div class="yours-truly">ขอแสดงความนับถือ</div>
-          <div>(ลงชื่อ)...................................................................</div>
-          <div style="margin-top: 5px;">( ${currentUser.name} )</div>
-          <div>ครูประจำชั้น / ครูผู้สอน</div>
+          <div class="sig-line"></div>
+          <div>( ${currentUser.name} )</div>
+          <div>ครูประจำชั้น</div>
+        </div>
+        <div class="sig-box">
+          <div class="sig-line"></div>
+          <div>( ....................................................... )</div>
+          <div>ผู้อำนวยการโรงเรียน${schoolName}</div>
         </div>
       </div>
-      <div class="cut-line"><span>✂️ ................................................. ตัดตามรอยปรุ ................................................. ✂️</span></div>
+
       <div class="tear-off">
-        <div class="tear-off-title">แบบตอบรับการแจ้งพฤติกรรมการขาดเรียน</div>
-        <p>ข้าพเจ้า (นาย/นาง/นางสาว) <span class="fill-line" style="width:250px;"></span> เกี่ยวข้องเป็น <span class="fill-line" style="width:150px;"></span><br>
-           ผู้ปกครองของ <b>${student.name}</b> นักเรียนชั้น <b>${cls}</b> ได้รับทราบว่านักเรียนขาดเรียนจำนวน <b>${absentCount} วัน</b> แล้ว</p>
-        <p>สาเหตุการขาดเรียนเนื่องจาก: <span class="fill-line" style="width: 535px;"></span></p>
-        <div class="tear-off-sig">
-          <div class="tear-sig-box">(ลงชื่อ).................................... นักเรียน<br>วันที่........./........./.........</div>
-          <div class="tear-sig-box">(ลงชื่อ).................................... ผู้ปกครอง<br>วันที่........./........./.........</div>
+        <h4>ส่วนที่ 2: แบบตอบรับสำหรับผู้ปกครอง</h4>
+        <p>ข้าพเจ้า (....................................................) ผู้ปกครองของ ${student.name} ได้รับทราบการแจ้งเตือนเรื่องการขาดเรียนจำนวน ${absentCount} วัน เรียบร้อยแล้ว</p>
+        <p>สาเหตุการขาดเรียน: .........................................................................................................</p>
+        <div style="display:flex; justify-content:space-around; margin-top:20px;">
+          <div>ลงชื่อ.................................. ผู้ปกครอง</div>
+          <div>วันที่........./........./.........</div>
         </div>
       </div>
     </div>
-    <script>
-      window.onload = () => { setTimeout(() => { window.print(); }, 500); };
-    <\/script>
+    <script>window.onload = () => setTimeout(() => window.print(), 500);<\/script>
   </body>
   </html>`;
 
@@ -2553,7 +2534,6 @@ function printWarningLetter(studentId) {
   printWindow.document.write(html);
   printWindow.document.close();
 }
-
 // =============================================
 // ฟังก์ชันอัปเดตตัวเลขวันเรียนในหน้า ปฏิทิน
 // =============================================
