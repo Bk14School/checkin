@@ -2661,6 +2661,61 @@ function clearPin() {
   currentPin = "";
   updatePinDisplay();
 }
+
+  // =============================================
+// Student Management (เพิ่มนักเรียน)
+// =============================================
+
+// 1. ฟังก์ชันเปิดหน้าต่างเพิ่มนักเรียน
+function openAddStudent() {
+  // ดึงชื่อชั้นเรียนปัจจุบันมาแสดง
+  const cls = document.getElementById('calClassroom').value || (currentUser ? currentUser.classroom : '');
+  
+  // เคลียร์ค่าเดิมและใส่ค่าห้องเรียนลงไป
+  document.getElementById('newStudentClass').value = cls;
+  document.getElementById('newStudentId').value = '';
+  document.getElementById('newStudentName').value = '';
+  
+  // สั่งเปิด Modal
+  const modalEl = document.getElementById('addStudentModal');
+  const modalInst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+  modalInst.show();
+}
+
+// 2. ฟังก์ชันยืนยันการเพิ่มนักเรียน (ส่งไปบันทึกลง Google Sheets)
+async function confirmAddStudent() {
+  const id = document.getElementById('newStudentId').value.trim();
+  const name = document.getElementById('newStudentName').value.trim();
+  const cls = document.getElementById('newStudentClass').value;
+  
+  if (!id || !name) {
+    showToast('กรุณากรอกเลขประจำตัวและชื่อนักเรียนให้ครบถ้วน', 'error');
+    return;
+  }
+  
+  showProgress('กำลังเพิ่มนักเรียน...');
+  try {
+    // ส่งข้อมูลไปบันทึกที่ Backend
+    await api('addStudent', { 
+      year: currentYear, 
+      classroom: cls, 
+      studentId: id, 
+      name: name, 
+      teacherName: currentUser.name 
+    });
+    
+    showToast('เพิ่มนักเรียนสำเร็จ!', 'success');
+    
+    // ปิดหน้าต่าง Modal
+    bootstrap.Modal.getInstance(document.getElementById('addStudentModal')).hide();
+    
+    // รีเฟรชโหลดข้อมูลนักเรียนและปฏิทินใหม่ เพื่อให้ชื่อเด็กใหม่โผล่ขึ้นมาทันที
+    loadCalendarData(); 
+  } catch(e) {
+    showToast('ไม่สามารถเพิ่มนักเรียนได้: ' + e.message, 'error');
+  }
+  hideProgress();
+}
 </script>
 </body>
 </html>
