@@ -1496,7 +1496,7 @@ async function loadCalendarData() {
   try {
     const [raw, holidays] = await Promise.all([
       api('getReport',   { year: currentYear, classroom: cls, month: mm }),
-      api('getHolidays', { year: currentYear }) // 👈 แก้จาก term เป็น year
+      api('getHolidays', { year: currentYear }) // 🟢 แก้จาก term เป็น year
     ]);
     calStudents = raw.students ||[];
 
@@ -1512,7 +1512,7 @@ async function loadCalendarData() {
     calHolidays = {};
     (holidays||[]).forEach(h => { calHolidays[h.date] = h; });
 
-    // 👈 ดึงโน้ตจาก raw.notes ที่ส่งมาจาก Backend (แทนของเก่าที่ใช้ sessionStorage)
+    // 🟢 ดึงโน้ตจาก raw.notes ที่ส่งมาจาก Backend ชีท
     calDayNotes = raw.notes || {};
 
     renderCalendar();
@@ -1553,44 +1553,15 @@ async function calRemoveHoliday() {
   hideProgress();
 }
 
-async function calSaveDay() {
-  const cls = document.getElementById('calClassroom').value;
-  const records = calStudents.map(s => ({ studentId: s.studentId, status: calEditAtt[s.studentId] || '-' }));
-  
-  // 👈 ดึงข้อความโน้ตจากช่องพิมพ์
-  const note = document.getElementById('calDayNote').value.trim(); 
 
-  showProgress('กำลังบันทึก...');
-  try {
-    // 👈 ส่งตัวแปร note ไปบันทึกที่ Backend ด้วย
-    await api('saveAttendance', { year: currentYear, classroom: cls, date: calEditDate, records, teacherName: currentUser.name, note: note });
-
-    calDayData[calEditDate] = {};
-    records.forEach(r => { if (r.status !== '-') calDayData[calEditDate][r.studentId] = r.status; });
-
-    // 👈 อัปเดตเก็บในตัวแปรแสดงผลปฏิทิน
-    if (note) calDayNotes[calEditDate] = note; else delete calDayNotes[calEditDate];
-
-    calModalInst?.hide();
-    renderCalendar();
-    showToast(`บันทึก ${calEditDate} สำเร็จ ✅`, 'success');
-     setTimeout(() => {
-      if(confirm(`บันทึกเช็คชื่อ ${calEditDate} เรียบร้อย!\nคุณต้องการบันทึกข้อมูล "โฮมรูม" ประจำวันต่อเลยหรือไม่?`)) {
-        openHomeroomModal();
-      }
-    }, 500);
-  } catch(e) {
-    showToast('บันทึกไม่สำเร็จ: '+e.message, 'error');
-  }
-  hideProgress();
-}
 
 async function clearCalNote() {
-  // 👈 เวลาลบโน้ต ให้เคลียร์ช่องแล้วสั่งเซฟ (มันจะส่งค่าว่างไปลบในชีทอัตโนมัติ)
+  // 🟢 เวลาลบโน้ต ให้เคลียร์ช่องแล้วสั่งเซฟ (มันจะส่งค่าว่างไปลบแถวในชีทอัตโนมัติ)
   document.getElementById('calDayNote').value = '';
   await calSaveDay();
   showToast('ลบหมายเหตุเรียบร้อย', 'info');
 }
+  
 function calcStreakMap() {
   const streaks = {};
   if (!calStudents.length) return streaks;
@@ -1852,17 +1823,20 @@ function calSetAll(status) {
 async function calSaveDay() {
   const cls = document.getElementById('calClassroom').value;
   const records = calStudents.map(s => ({ studentId: s.studentId, status: calEditAtt[s.studentId] || '-' }));
+  
+  // 🟢 ดึงข้อความโน้ตจากช่องพิมพ์ (ย้ายขึ้นมาก่อนยิง API)
+  const note = document.getElementById('calDayNote').value.trim(); 
 
   showProgress('กำลังบันทึก...');
   try {
-    await api('saveAttendance', { year: currentYear, classroom: cls, date: calEditDate, records, teacherName: currentUser.name });
+    // 🟢 ส่งตัวแปร note ไปบันทึกที่ Backend ด้วย
+    await api('saveAttendance', { year: currentYear, classroom: cls, date: calEditDate, records, teacherName: currentUser.name, note: note });
 
     calDayData[calEditDate] = {};
     records.forEach(r => { if (r.status !== '-') calDayData[calEditDate][r.studentId] = r.status; });
 
-    const note = document.getElementById('calDayNote').value.trim();
+    // 🟢 อัปเดตเก็บในตัวแปรแสดงผลปฏิทิน (เอา sessionStorage ออกแล้ว)
     if (note) calDayNotes[calEditDate] = note; else delete calDayNotes[calEditDate];
-    try { sessionStorage.setItem('calNotes_'+currentYear+'_'+calMonth, JSON.stringify(calDayNotes)); } catch(e){}
 
     calModalInst?.hide();
     renderCalendar();
@@ -1877,7 +1851,7 @@ async function calSaveDay() {
   }
   hideProgress();
 }
-
+  
 async function clearFullDay() {
   if (!confirm("ต้องการล้างข้อมูลการเช็คชื่อของวันที่ " + calEditDate + " ทั้งหมดใช่หรือไม่?")) return;
   calStudents.forEach(s => { calEditAtt[s.studentId] = ''; });
