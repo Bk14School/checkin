@@ -754,7 +754,11 @@ async function afterLogin() {
 function logout() {
   currentUser = null; calStudents =[]; calDayData = {}; reportData = null;
   const safe = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
-  safe('teacherBadge', el => el.style.display='none');['btnNavDash','btnNav2','btnNav3','btnLogout','btnNavConfig','btnNavLogin'].forEach(id => safe(id, el => el.style.display='none'));
+  
+  safe('teacherBadge', el => el.style.display='none');
+  
+  // เพิ่ม 'navTermSelector' ต่อท้ายใน Array นี้['btnNavDash','btnNav2','btnNav3','btnLogout','btnNavConfig','btnNavLogin','navTermSelector'].forEach(id => safe(id, el => el.style.display='none'));
+  
   safe('loginPass', el => { el.value=''; });
   showPage('loginPage');
   showToast('ออกจากระบบแล้ว','info');
