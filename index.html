@@ -220,19 +220,32 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
 .btn-save { background: linear-gradient(135deg, var(--success), #059669); color: #fff; border: none; padding: 12px 32px; border-radius: var(--radius-sm); font-size: 1rem; font-weight: 600; cursor: pointer; font-family: inherit; box-shadow: 0 4px 12px rgba(16,185,129,0.3); transition: all 0.2s; }
 .btn-save:hover { transform: translateY(-1px); box-shadow: 0 8px 16px rgba(16,185,129,0.4); }
 
-/* Mobile Navbar Fixes */
+/* ===== Navbar ปรับใหม่ให้เข้ากับมือถือ ===== */
+.app-nav { padding: 8px 0; }
+.nav-info { 
+  display: flex; 
+  align-items: center; 
+  gap: 6px; 
+  overflow-x: auto; /* ให้เลื่อนซ้ายขวาได้ถ้าเมนูล้น */
+  white-space: nowrap;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* ซ่อนแถบเลื่อน */
+}
+.nav-info::-webkit-scrollbar { display: none; }
+
+.teacher-badge { font-size: 0.75rem; padding: 4px 10px; }
+.nav-btn { 
+  padding: 5px 12px; 
+  font-size: 0.75rem; 
+  white-space: nowrap; /* ไม่ให้คำตัดบรรทัด */
+  min-width: fit-content;
+}
+
 @media (max-width: 640px) {
-  .app-nav { padding: 10px 0 6px 0; }
-  .app-nav .container { flex-wrap: wrap; gap: 8px; }
-  .brand { width: 100%; }
-  .nav-info { width: 100%; overflow-x: auto; justify-content: flex-start; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
-  .nav-info::-webkit-scrollbar { display: none; }
-  .nav-btn { padding: 6px 12px; font-size: 0.8rem; }
-  .teacher-badge { padding: 5px 12px; }
-  .login-card { padding: 32px 20px; }
-  .app-card { padding: 18px; }
-  .quick-actions { display: grid; grid-template-columns: 1fr 1fr; }
-  .quick-btn { text-align: center; }
+  .app-nav .container { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .brand { width: 100%; margin-bottom: 5px; }
+  .nav-info { width: 100%; }
 }
 </style>
 </head>
