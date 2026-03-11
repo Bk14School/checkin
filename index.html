@@ -2044,30 +2044,31 @@ function printCalStudent() {
   const pages = calStudents.map((s, idx) => {
     let p=0, a=0, l=0, la=0, schoolDayCount=0;
     
-    const rows = allDates.map((ds) => {
-      const hol = calHolidays[ds];
-      const v = (calDayData[ds]||{})[s.studentId]||'';
-      const pArr = ds.split('/');
-      const dow = new Date(parseInt(pArr[2])-543, parseInt(pArr[1])-1, parseInt(pArr[0])).getDay();
-      
-      const isHoliday = hol && hol.type === 'holiday';
-      const isMakeup = hol && hol.type === 'makeup';
-      const isWeekend = (dow === 0 || dow === 6);
-      const isSchoolDay = isMakeup || (!isWeekend && !isHoliday);
+const rows = allDates.map((ds) => {
+  const hol = calHolidays[ds];
+  const v = (calDayData[ds] || {})[s.studentId] || '';
+  const pArr = ds.split('/');
+  const dObj = new Date(parseInt(pArr[2]) - 543, parseInt(pArr[1]) - 1, parseInt(pArr[0]));
+  const dow = dObj.getDay();
 
-      if (isSchoolDay) {
-        schoolDayCount++;
-        if(v==='ม') p++; else if(v==='ข') a++; else if(v==='ล' || v==='ป') l++; else if(v==='ส') la++;
-      }
-      
-      const rowClass = isHoliday ? 'holiday' : (isWeekend && !isMakeup ? 'weekend' : '');
-      return `<tr class="${rowClass}">
-        <td style="text-align:center;">${parseInt(pArr[0])}</td>
-        <td>${DAY_NAMES[dow]}</td>
-        <td style="text-align:center; font-weight:bold;">${isHoliday ? '-' : (v || '-')}</td>
-        <td style="font-size:12px;">${isHoliday ? '🚫 ' + (hol.note || 'วันหยุด') : (v==='ม'?'มาเรียน':v==='ข'?'ขาดเรียน':v==='ล'?'ลา':v==='ป'?'ป่วย':v==='ส'?'มาสาย':(isWeekend && !isMakeup ? 'วันหยุดสุดสัปดาห์' : '-'))}</td>
-      </tr>`;
-    }).join('');
+  const colors = {
+    'ม': { bg: '#dcfce7', fg: '#166534' }, // เขียว
+    'ข': { bg: '#fee2e2', fg: '#991b1b' }, // แดง
+    'ล': { bg: '#fef3c7', fg: '#92400e' }, // เหลือง
+    'ป': { bg: '#fef3c7', fg: '#92400e' }, // เหลือง
+    'ส': { bg: '#e0e7ff', fg: '#3730a3' }  // น้ำเงิน
+  };
+
+  const status = (hol && hol.type === 'holiday') ? 'holiday' : (v ? v : '');
+  const style = colors[v] ? `background-color: ${colors[v].bg}; color: ${colors[v].fg};` : '';
+
+  return `<tr class="${hol ? 'holiday' : ''}">
+    <td style="text-align:center;">${parseInt(pArr[0])}</td>
+    <td>${DAY_NAMES[dow]}</td>
+    <td style="text-align:center; font-weight:bold; ${style}">${v || '-'}</td>
+    <td style="${style}">${(hol ? '🚫 ' + (hol.note || 'วันหยุด') : (v ? (v==='ม'?'มาเรียน':v==='ข'?'ขาดเรียน':v==='ล'?'ลา':v==='ป'?'ป่วย':v==='ส'?'มาสาย':'') : '-'))}</td>
+  </tr>`;
+}).join('');
 
     const pct = schoolDayCount ? Math.round(p/schoolDayCount*100) : 0;
 
