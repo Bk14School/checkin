@@ -1845,10 +1845,12 @@ function openCalDay(dateStr) {
 }
 
 function renderCalDayStudents() {
-  const checked = Object.values(calEditAtt).filter(v=>v).length;
-  document.getElementById('calDayChecked').textContent = `เช็คแล้ว ${checked}/${calStudents.length} คน`;
+  const activeStudents = calStudents.filter(s => !s.name.includes('(ย้ายออก)'));
+  
+  const checked = Object.values(calEditAtt).filter(v => v).length;
+  document.getElementById('calDayChecked').textContent = `เช็คแล้ว ${checked}/${activeStudents.length} คน`;
 
-  document.getElementById('calDayStudents').innerHTML = calStudents.map((s,i) => {
+  document.getElementById('calDayStudents').innerHTML = activeStudents.map((s,i) => {
     const st = calEditAtt[s.studentId]||'';
     const map = {'ม':'present','ข':'absent','ล':'leave','ป':'sick','ส':'late'};
     const btns =['ม','ข','ล','ป','ส'].map(v =>
@@ -2018,21 +2020,28 @@ function renderStudentTimeline() {
 
     const pct = total ? Math.round(p / total * 100) : 0;
     
-    // 🟢 ระบบระดับการเตือน
+    // ระบบระดับการเตือน
     let warningBtn = '';
     if (a >= 15) {
-      warningBtn = `<button class="btn-print-warn" style="background:#7c3aed; color:#fff;" onclick="printWarningLetter('${s.studentId}', 3)">⚠️ เตือนระดับ 3 (ขั้นเด็ดขาด)</button>`;
+      warningBtn = `<button class="btn-print-warn" style="background:#7c3aed; color:#fff;" onclick="printWarningLetter('${s.studentId}', 3)">⚠️ เตือนระดับ 3</button>`;
     } else if (a >= 8) {
-      warningBtn = `<button class="btn-print-warn" style="background:#b91c1c; color:#fff;" onclick="printWarningLetter('${s.studentId}', 2)">⚠️ เตือนระดับ 2 (เป็นทางการ)</button>`;
+      warningBtn = `<button class="btn-print-warn" style="background:#b91c1c; color:#fff;" onclick="printWarningLetter('${s.studentId}', 2)">⚠️ เตือนระดับ 2</button>`;
     } else if (a >= 3) {
-      warningBtn = `<button class="btn-print-warn" onclick="printWarningLetter('${s.studentId}', 1)">⚠️ เตือนระดับ 1 (ห่วงใย)</button>`;
+      warningBtn = `<button class="btn-print-warn" onclick="printWarningLetter('${s.studentId}', 1)">⚠️ เตือนระดับ 1</button>`;
     }
 
+    // --- ส่วนที่เพิ่มใหม่สำหรับฟีเจอร์ย้ายออก ---
+    const isTransferredOut = s.name.includes('(ย้ายออก)');
+    const transferBtn = isTransferredOut 
+      ? `<span style="font-size:0.7rem; color:#ef4444; background:#fee2e2; padding:2px 6px; border-radius:4px; margin-left:auto;">ย้ายออกแล้ว</span>`
+      : `<button class="btn btn-sm btn-outline-danger" style="font-size:0.7rem; padding:2px 6px; margin-left:auto;" onclick="markTransferOut('${s.studentId}', '${s.name}')">🚪 ย้ายออก</button>`;
+
     return `<div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <span style="font-size:.88rem;font-weight:600;">${s.name}</span>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px; flex-wrap:wrap;">
+        <span style="font-size:.88rem; font-weight:600; ${isTransferredOut ? 'text-decoration:line-through; color:#94a3b8;' : ''}">${s.name}</span>
         <span style="font-size:.75rem;color:#94a3b8;">มา ${p} / ขาด ${a}</span>
         ${warningBtn}
+        ${transferBtn}
       </div>
       <div class="cal-stu-timeline">${dots}</div>
     </div>`;
@@ -2713,6 +2722,34 @@ async function confirmAddStudent() {
     loadCalendarData(); 
   } catch(e) {
     showToast('ไม่สามารถเพิ่มนักเรียนได้: ' + e.message, 'error');
+  }
+  hideProgress();
+}
+
+  async function markTransferOut(studentId, studentName) {
+  // 1. แจ้งเตือนยืนยันก่อนทำรายการ
+  if (!confirm(`ยืนยันการทำรายการ "ย้ายออก" สำหรับนักเรียน:\n${studentName}\n\n*หมายเหตุ: ชื่อนักเรียนจะถูกซ่อนจากใบเช็คชื่อประจำวัน แต่ข้อมูลประวัติเดิมจะยังคงอยู่`)) {
+    return;
+  }
+
+  showProgress('กำลังทำรายการย้ายออก...');
+  try {
+    const cls = document.getElementById('calClassroom').value || currentUser.classroom;
+    
+    // 2. ส่งคำสั่งไป Backend
+    await api('transferOutStudent', { 
+      year: currentYear, 
+      classroom: cls, 
+      studentId: studentId, 
+      teacherName: currentUser.name 
+    });
+    
+    showToast('ทำรายการย้ายออกสำเร็จ', 'success');
+    
+    // 3. โหลดปฏิทินใหม่เพื่ออัปเดตสถานะชื่อนักเรียน (ซ่อนชื่อที่ย้ายออกไปแล้ว)
+    await loadCalendarData();
+  } catch(e) {
+    showToast('ผิดพลาด: ' + e.message, 'error');
   }
   hideProgress();
 }
