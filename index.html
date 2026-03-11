@@ -1496,7 +1496,7 @@ async function loadCalendarData() {
   try {
     const [raw, holidays] = await Promise.all([
       api('getReport',   { year: currentYear, classroom: cls, month: mm }),
-      api('getHolidays', { term: currentYear })
+      api('getHolidays', { year: currentYear }) // 👈 แก้จาก term เป็น year
     ]);
     calStudents = raw.students ||[];
 
@@ -1512,10 +1512,8 @@ async function loadCalendarData() {
     calHolidays = {};
     (holidays||[]).forEach(h => { calHolidays[h.date] = h; });
 
-    try {
-      const stored = sessionStorage.getItem('calNotes_'+currentYear+'_'+calMonth);
-      calDayNotes = stored ? JSON.parse(stored) : {};
-    } catch(e) { calDayNotes={}; }
+    // 👈 ดึงโน้ตจาก raw.notes ที่ส่งมาจาก Backend (แทนของเก่าที่ใช้ sessionStorage)
+    calDayNotes = raw.notes || {};
 
     renderCalendar();
   } catch(e) {
@@ -1524,6 +1522,75 @@ async function loadCalendarData() {
   hideProgress();
 }
 
+async function calMarkHoliday(type) {
+  const note = document.getElementById('calHolidayNote').value.trim();
+  showProgress('กำลังบันทึก...');
+  try {
+    // 👈 แก้ตัวแปรส่ง API จาก term เป็น year
+    await api('setHoliday', { year: currentYear, date: calHolEditDate, type, note, markedBy: currentUser.name });
+    calHolidays[calHolEditDate] = { type, note, markedBy: currentUser.name };
+    calHolModalInst?.hide();
+    renderCalendar();
+    showToast(type==='holiday'?'มาร์ควันหยุดแล้ว 🚫':'มาร์ควันชดเชยแล้ว 📚','success');
+  } catch(e) {
+    showToast('บันทึกไม่สำเร็จ: '+e.message,'error');
+  }
+  hideProgress();
+}
+
+async function calRemoveHoliday() {
+  showProgress('กำลังลบ...');
+  try {
+    // 👈 แก้ตัวแปรส่ง API จาก term เป็น year
+    await api('removeHoliday', { year: currentYear, date: calHolEditDate });
+    delete calHolidays[calHolEditDate];
+    calHolModalInst?.hide();
+    renderCalendar();
+    showToast('กลับเป็นวันเรียนปกติแล้ว ✅','success');
+  } catch(e) {
+    showToast('ลบไม่สำเร็จ: '+e.message,'error');
+  }
+  hideProgress();
+}
+
+async function calSaveDay() {
+  const cls = document.getElementById('calClassroom').value;
+  const records = calStudents.map(s => ({ studentId: s.studentId, status: calEditAtt[s.studentId] || '-' }));
+  
+  // 👈 ดึงข้อความโน้ตจากช่องพิมพ์
+  const note = document.getElementById('calDayNote').value.trim(); 
+
+  showProgress('กำลังบันทึก...');
+  try {
+    // 👈 ส่งตัวแปร note ไปบันทึกที่ Backend ด้วย
+    await api('saveAttendance', { year: currentYear, classroom: cls, date: calEditDate, records, teacherName: currentUser.name, note: note });
+
+    calDayData[calEditDate] = {};
+    records.forEach(r => { if (r.status !== '-') calDayData[calEditDate][r.studentId] = r.status; });
+
+    // 👈 อัปเดตเก็บในตัวแปรแสดงผลปฏิทิน
+    if (note) calDayNotes[calEditDate] = note; else delete calDayNotes[calEditDate];
+
+    calModalInst?.hide();
+    renderCalendar();
+    showToast(`บันทึก ${calEditDate} สำเร็จ ✅`, 'success');
+     setTimeout(() => {
+      if(confirm(`บันทึกเช็คชื่อ ${calEditDate} เรียบร้อย!\nคุณต้องการบันทึกข้อมูล "โฮมรูม" ประจำวันต่อเลยหรือไม่?`)) {
+        openHomeroomModal();
+      }
+    }, 500);
+  } catch(e) {
+    showToast('บันทึกไม่สำเร็จ: '+e.message, 'error');
+  }
+  hideProgress();
+}
+
+async function clearCalNote() {
+  // 👈 เวลาลบโน้ต ให้เคลียร์ช่องแล้วสั่งเซฟ (มันจะส่งค่าว่างไปลบในชีทอัตโนมัติ)
+  document.getElementById('calDayNote').value = '';
+  await calSaveDay();
+  showToast('ลบหมายเหตุเรียบร้อย', 'info');
+}
 function calcStreakMap() {
   const streaks = {};
   if (!calStudents.length) return streaks;
