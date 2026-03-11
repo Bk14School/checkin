@@ -752,16 +752,42 @@ async function afterLogin() {
 }
 
 function logout() {
-  currentUser = null; calStudents =[]; calDayData = {}; reportData = null;
-  const safe = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
+  // 1. เคลียร์ข้อมูลในหน่วยความจำ
+  currentUser = null; 
+  calStudents =[]; 
+  calDayData = {}; 
+  reportData = null;
+
+  // 2. ซ่อนเมนูด้านบนทั้งหมด
+  const hideElements =[
+    'teacherBadge', 
+    'navTermSelector', 
+    'btnNavDash', 
+    'btnNav3', 
+    'btnNav2', 
+    'btnNavConfig', 
+    'btnLogout', 
+    'btnNavLogin'
+  ];
   
-  safe('teacherBadge', el => el.style.display='none');
+  hideElements.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.style.display = 'none';
+    }
+  });
+
+  // 3. เคลียร์ช่องรหัสผ่าน (รองรับทั้งแบบกล่องข้อความและแบบ PIN Pad)
+  const passInput = document.getElementById('loginPass');
+  if (passInput) passInput.value = '';
   
-  // เพิ่ม 'navTermSelector' ต่อท้ายใน Array นี้['btnNavDash','btnNav2','btnNav3','btnLogout','btnNavConfig','btnNavLogin','navTermSelector'].forEach(id => safe(id, el => el.style.display='none'));
-  
-  safe('loginPass', el => { el.value=''; });
+  if (typeof clearPin === 'function') {
+    clearPin();
+  }
+
+  // 4. สลับกลับไปหน้า Login และแจ้งเตือน
   showPage('loginPage');
-  showToast('ออกจากระบบแล้ว','info');
+  showToast('ออกจากระบบแล้ว', 'info');
 }
 
 function goBackToLogin() {
