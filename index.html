@@ -2726,27 +2726,27 @@ async function confirmAddStudent() {
   hideProgress();
 }
 
-  async function markTransferOut(studentId, studentName) {
-  // 1. แจ้งเตือนยืนยันก่อนทำรายการ
-  if (!confirm(`ยืนยันการทำรายการ "ย้ายออก" สำหรับนักเรียน:\n${studentName}\n\n*หมายเหตุ: ชื่อนักเรียนจะถูกซ่อนจากใบเช็คชื่อประจำวัน แต่ข้อมูลประวัติเดิมจะยังคงอยู่`)) {
-    return;
-  }
+async function markTransferOut(studentId, studentName) {
+  if (!confirm(`ยืนยันการย้ายออก: ${studentName}?`)) return;
 
-  showProgress('กำลังทำรายการย้ายออก...');
+  // ตรวจสอบค่าก่อนส่ง
+  console.log("กำลังส่งค่าปี:", currentYear, "ห้อง:", document.getElementById('calClassroom').value);
+
+  showProgress('กำลังทำรายการ...');
   try {
     const cls = document.getElementById('calClassroom').value || currentUser.classroom;
     
-    // 2. ส่งคำสั่งไป Backend
-await api('transferOutStudent', { 
-  year: currentYear, 
-  classroom: cls, 
-  studentId: studentId, 
-  teacherName: currentUser.name 
-});
+    // ตรวจสอบว่า currentYear มีค่าจริงๆ
+    if (!currentYear) throw new Error("ระบบหาปีการศึกษาไม่พบ");
+
+    await api('transferOutStudent', { 
+      year: currentYear, 
+      classroom: cls, 
+      studentId: studentId, 
+      teacherName: currentUser.name 
+    });
     
     showToast('ทำรายการย้ายออกสำเร็จ', 'success');
-    
-    // 3. โหลดปฏิทินใหม่เพื่ออัปเดตสถานะชื่อนักเรียน (ซ่อนชื่อที่ย้ายออกไปแล้ว)
     await loadCalendarData();
   } catch(e) {
     showToast('ผิดพลาด: ' + e.message, 'error');
