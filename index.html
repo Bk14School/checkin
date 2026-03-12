@@ -569,8 +569,14 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
     <div class="modal-content">
       <div class="modal-header" style="background:#1e3a5f; color:#fff;"><h5 class="modal-title fw-bold">⚙️ ตั้งค่าปีการศึกษา</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <div class="mb-3"><label class="form-label fw-semibold">ปีการศึกษา (พ.ศ.)</label><input type="number" class="form-control form-control-lg text-center" id="cfgYear" placeholder="เช่น 2569"></div>
-        <div class="card p-3 mb-3 bg-light border-0"><label class="fw-bold text-primary mb-2">เทอม 1</label><div class="row g-2"><div class="col-6"><label class="form-label mb-1" style="font-size:0.8rem;">วันเปิดเทอม</label><input type="date" id="cfgT1Start" class="form-control"></div><div class="col-6"><label class="form-label mb-1" style="font-size:0.8rem;">วันปิดเทอม</label><input type="date" id="cfgT1End" class="form-control"></div></div></div>
+<div class="mb-3">
+  <label class="form-label fw-semibold">ปีการศึกษา (พ.ศ.)</label>
+  <select class="form-select form-select-lg text-center fw-bold text-primary mb-2" id="cfgYearSelect" onchange="toggleNewYearInput()">
+    <!-- รายการจะถูกดึงมาใส่ด้วย JS -->
+  </select>
+  <!-- ช่องกรอกจะโชว์ก็ต่อเมื่อเลือก "เพิ่มปีการศึกษาใหม่" -->
+  <input type="number" class="form-control form-control-lg text-center mt-2" id="cfgYear" placeholder="ระบุปี พ.ศ. เช่น 2569" style="display:none;">
+</div>        <div class="card p-3 mb-3 bg-light border-0"><label class="fw-bold text-primary mb-2">เทอม 1</label><div class="row g-2"><div class="col-6"><label class="form-label mb-1" style="font-size:0.8rem;">วันเปิดเทอม</label><input type="date" id="cfgT1Start" class="form-control"></div><div class="col-6"><label class="form-label mb-1" style="font-size:0.8rem;">วันปิดเทอม</label><input type="date" id="cfgT1End" class="form-control"></div></div></div>
         <div class="card p-3 mb-3 bg-light border-0"><label class="fw-bold text-success mb-2">เทอม 2</label><div class="row g-2"><div class="col-6"><label class="form-label mb-1" style="font-size:0.8rem;">วันเปิดเทอม</label><input type="date" id="cfgT2Start" class="form-control"></div><div class="col-6"><label class="form-label mb-1" style="font-size:0.8rem;">วันปิดเทอม</label><input type="date" id="cfgT2End" class="form-control"></div></div></div>
         <div class="mb-2"><label class="form-label fw-semibold">เทอมเริ่มต้น</label><select id="cfgDefaultTerm" class="form-select"><option value="1">เทอม 1</option><option value="2">เทอม 2</option></select></div>
       </div>
@@ -1233,21 +1239,85 @@ function thaiDDMMYYYYToInput(val) {
 // =============================================
 // Modal ตั้งค่า (ดึงและบันทึก)
 // =============================================
-function openConfigModal() {
-  document.getElementById('cfgYear').value = sysConfig.active_year || "";
-  
-  document.getElementById('cfgT1Start').value = thaiDDMMYYYYToInput(sysConfig.t1_start);
-  document.getElementById('cfgT1End').value   = thaiDDMMYYYYToInput(sysConfig.t1_end);
-  document.getElementById('cfgT2Start').value = thaiDDMMYYYYToInput(sysConfig.t2_start);
-  document.getElementById('cfgT2End').value   = thaiDDMMYYYYToInput(sysConfig.t2_end);
-  
-  document.getElementById('cfgDefaultTerm').value = sysConfig.active_term || "1";
+// =============================================
+// Modal ตั้งค่า (ดึงและบันทึก)
+// =============================================
+async function openConfigModal() {
+  showProgress('กำลังโหลดข้อมูลการตั้งค่า...');
+  try {
+    // 1. ดึงรายการปีการศึกษาที่เคยมี
+    const availableYears = await api('getAvailableYears');
+    const select = document.getElementById('cfgYearSelect');
+    select.innerHTML = '';
+    
+    availableYears.forEach(y => {
+      select.innerHTML += `<option value="${y}">ปีการศึกษา ${y}</option>`;
+    });
+    select.innerHTML += `<option value="new" class="text-success fw-bold">➕ เพิ่มปีการศึกษาใหม่</option>`;
+
+    // 2. ตั้งค่า Default ให้ตรงกับปีปัจจุบันที่ระบบใช้อยู่
+    if (sysConfig.active_year && availableYears.includes(sysConfig.active_year)) {
+      select.value = sysConfig.active_year;
+      document.getElementById('cfgYear').style.display = 'none';
+    } else {
+      select.value = 'new';
+      document.getElementById('cfgYear').style.display = 'block';
+    }
+
+    // 3. ใส่ค่าวันที่
+    document.getElementById('cfgT1Start').value = thaiDDMMYYYYToInput(sysConfig.t1_start);
+    document.getElementById('cfgT1End').value   = thaiDDMMYYYYToInput(sysConfig.t1_end);
+    document.getElementById('cfgT2Start').value = thaiDDMMYYYYToInput(sysConfig.t2_start);
+    document.getElementById('cfgT2End').value   = thaiDDMMYYYYToInput(sysConfig.t2_end);
+    document.getElementById('cfgDefaultTerm').value = sysConfig.active_term || "1";
+    
+  } catch (e) {
+    showToast('ไม่สามารถโหลดรายการปีการศึกษาได้', 'error');
+  }
+  hideProgress();
+
   new bootstrap.Modal(document.getElementById('configModal')).show();
 }
 
+// เมื่อเปลี่ยน Dropdown
+async function toggleNewYearInput() {
+  const select = document.getElementById('cfgYearSelect');
+  const input = document.getElementById('cfgYear');
+  
+  if (select.value === 'new') {
+    // กรณีเพิ่มใหม่ ให้แสดงช่องกรอก และเคลียร์วันที่ให้ว่าง
+    input.style.display = 'block';
+    input.value = '';
+    input.focus();
+    
+    document.getElementById('cfgT1Start').value = '';
+    document.getElementById('cfgT1End').value = '';
+    document.getElementById('cfgT2Start').value = '';
+    document.getElementById('cfgT2End').value = '';
+  } else {
+    // กรณีเลือกปีเก่า ให้ซ่อนช่องกรอก และไปดึงวันที่ของปีนั้นๆ มาแสดง
+    input.style.display = 'none';
+    showProgress(`กำลังโหลดวันที่ของปี ${select.value}...`);
+    try {
+      const yConfig = await api('getConfigForYear', { year: select.value });
+      document.getElementById('cfgT1Start').value = thaiDDMMYYYYToInput(yConfig.t1_start);
+      document.getElementById('cfgT1End').value   = thaiDDMMYYYYToInput(yConfig.t1_end);
+      document.getElementById('cfgT2Start').value = thaiDDMMYYYYToInput(yConfig.t2_start);
+      document.getElementById('cfgT2End').value   = thaiDDMMYYYYToInput(yConfig.t2_end);
+    } catch(e) {
+      console.error(e);
+    }
+    hideProgress();
+  }
+}
+
 async function saveYearConfig() {
+  // ดึงค่าว่าตอนนี้เลือกปีจาก Dropdown หรือพิมพ์ใหม่
+  const selectVal = document.getElementById('cfgYearSelect').value;
+  const finalYear = selectVal === 'new' ? document.getElementById('cfgYear').value.trim() : selectVal;
+
   const payload = {
-    year: document.getElementById('cfgYear').value.trim(),
+    year: finalYear,
     t1_start: inputToThaiDDMMYYYY(document.getElementById('cfgT1Start').value),
     t1_end:   inputToThaiDDMMYYYY(document.getElementById('cfgT1End').value),
     t2_start: inputToThaiDDMMYYYY(document.getElementById('cfgT2Start').value),
@@ -1260,7 +1330,7 @@ async function saveYearConfig() {
   }
 
   bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
-  showProgress(`กำลังอัปเดตข้อมูลปี ${payload.year}...`);
+  showProgress(`กำลังประมวลผลระบบสำหรับปี ${payload.year}...`);
   try {
     await api('setupYear', payload);
     sysConfig = await api('getConfig'); 
@@ -1268,7 +1338,7 @@ async function saveYearConfig() {
     currentTerm = sysConfig.active_term;
     document.getElementById('navTermSelector').value = currentTerm;
     
-    showToast(`✅ บันทึกการตั้งค่าปี ${currentYear} สำเร็จ`, 'success');
+    showToast(`✅ สลับใช้งานระบบเป็นปี ${currentYear} สำเร็จ`, 'success');
     await applyTermConfig();
     if (typeof renderSchoolDaysSummary === 'function') renderSchoolDaysSummary(); 
     await loadCalendarData();
