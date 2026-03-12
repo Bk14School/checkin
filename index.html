@@ -520,7 +520,11 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
       
       <!-- กล่องสรุปวันเรียนตรงนี้ -->
       <div id="calDaysSummaryText" class="w-100 mb-2 px-3 py-2 rounded-3" style="display:none; background: #f0f9ff; border: 1px solid #bae6fd; color: #0284c7; font-size: 0.9rem; justify-content: space-between; align-items: center; flex-wrap: wrap;"></div>
-      
+      <!-- วางไว้หลัง calDaysSummaryText -->
+<div id="missingAttendanceAlert" class="alert alert-warning" style="display:none; margin-bottom:15px; border-left: 5px solid #f59e0b;">
+  <div style="font-weight:700; color:#92400e; margin-bottom:5px;">⚠️ แจ้งเตือน: มีวันที่ยังไม่ได้เช็คชื่อในเดือนนี้</div>
+  <div id="missingDatesList" style="font-size:0.85rem; color:#b45309;"></div>
+</div>
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div class="d-flex gap-2 flex-wrap" id="calFilters">
           <span style="font-size:0.8rem; color:#64748b; align-self:center; margin-right:4px;">ฟิลเตอร์จุดสี:</span>
@@ -1909,6 +1913,8 @@ function renderCalendar() {
   document.getElementById('calGrid').innerHTML = html;
   renderStudentTimeline();
     updateCalDaysSummary();
+    checkMissingAttendance(); 
+
 
 }
 
@@ -3091,6 +3097,44 @@ function printSummaryReport() {
   });
 
   openPrint(html);
+}
+  function checkMissingAttendance() {
+  const alertBox = document.getElementById('missingAttendanceAlert');
+  const listDiv = document.getElementById('missingDatesList');
+  const missingDates = [];
+
+  const daysInMonth = new Date(calYear - 543, calMonth, 0).getDate();
+  const today = new Date();
+  
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = pad(d) + '/' + pad(calMonth) + '/' + calYear;
+    const dObj = new Date(calYear - 543, calMonth - 1, d);
+    
+    // 1. ถ้าเป็นวันอนาคต ไม่ต้องแจ้งเตือน
+    if (dObj > today) continue;
+    
+    // 2. ถ้าเป็นวันหยุดพิเศษ (Holiday) ไม่ต้องแจ้งเตือน
+    if (calHolidays[dateStr] && calHolidays[dateStr].type === 'holiday') continue;
+    
+    // 3. ถ้าเป็นวันเสาร์-อาทิตย์ และไม่ใช่วันเรียนชดเชย ไม่ต้องแจ้งเตือน
+    const dow = dObj.getDay();
+    const isWeekend = (dow === 0 || dow === 6);
+    const isMakeup = (calHolidays[dateStr] && calHolidays[dateStr].type === 'makeup');
+    if (isWeekend && !isMakeup) continue;
+    
+    // 4. ตรวจสอบว่ามีข้อมูลเช็คชื่อหรือไม่
+    const dayAtt = calDayData[dateStr];
+    if (!dayAtt || Object.keys(dayAtt).length === 0) {
+      missingDates.push(d);
+    }
+  }
+
+  if (missingDates.length > 0) {
+    listDiv.innerHTML = `คุณลืมเช็คชื่อในวันที่: <b>${missingDates.join(', ')}</b> ของเดือนนี้`;
+    alertBox.style.display = 'block';
+  } else {
+    alertBox.style.display = 'none';
+  }
 }
 </script>
 </body>
