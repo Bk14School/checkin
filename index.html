@@ -284,10 +284,13 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
          <option value="2">เทอม 2</option>
       </select>
       
-      <!-- เมนูหลังจากล็อกอิน -->
+     <!-- เมนูหลังจากล็อกอิน -->
       <button class="nav-btn" id="btnNavDash" onclick="openDashboard()"       style="display:none;">📊 สถิติภาพรวม</button>
       <button class="nav-btn" id="btnNav3" onclick="openCalendarPage()"       style="display:none;">✅ เช็คชื่อ / ปฏิทิน</button>
       <button class="nav-btn" id="btnNav2" onclick="showPage('reportPage')"   style="display:none;">📊 รายงาน</button>
+      <!-- เพิ่มปุ่มใหม่บรรทัดนี้ -->
+      <button class="nav-btn" id="btnNavSummary" onclick="openSummaryPage()"  style="display:none;">🏆 สรุปเทอม/ปี</button>
+      
       <button class="nav-btn" id="btnNavConfig" onclick="openConfigModal()"   style="display:none;" title="ตั้งค่าปีการศึกษา">⚙️</button>
       <button class="nav-btn danger" id="btnLogout" onclick="logout()"        style="display:none;">ออกจากระบบ</button>
       
@@ -443,6 +446,57 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
         </table>
       </div>
       <div class="report-summary mt-2" id="reportSummary"></div>
+    </div>
+  </div>
+</div>
+  <!-- ======= Summary Page (รายเทอม/ทั้งปี) ======= -->
+<div id="summaryPage" class="page-section">
+  <div class="container-main">
+    <div class="app-card mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="card-title mb-0">🏆 สรุปเวลาเรียน (รายเทอม / ทั้งปี)</div>
+        <div class="d-flex gap-2">
+          <button class="nav-btn" onclick="printSummaryReport()" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border-color:#0284c7;">🖨️ พิมพ์ PDF สรุป</button>
+        </div>
+      </div>
+      <div class="report-controls" style="align-items:flex-end;">
+        <div><label>ชั้นเรียน</label><select id="sumClassroom"></select></div>
+        <div>
+          <label>ช่วงเวลา</label>
+          <select id="sumTermSelect" class="form-select" style="min-width: 150px;">
+            <option value="1">เทอม 1</option>
+            <option value="2">เทอม 2</option>
+            <option value="all">รวมทั้งปีการศึกษา</option>
+          </select>
+        </div>
+        <button class="nav-btn" onclick="loadSummaryData()" style="height:38px;">🔄 ประมวลผล</button>
+      </div>
+    </div>
+    
+    <div class="app-card" id="sumTableCard">
+      <div id="sumKpiRow" class="row g-3 mb-3" style="display:none;">
+         <!-- กล่องสรุปจะโชว์ตรงนี้ -->
+      </div>
+      <div class="report-table-wrap">
+        <table class="report-table" id="sumTable">
+          <thead>
+            <tr>
+              <th style="min-width:40px; background:#1e3a5f;">#</th>
+              <th style="min-width:80px; background:#1e3a5f;">รหัส</th>
+              <th class="name-col" style="background:#1e3a5f;">ชื่อ-นามสกุล</th>
+              <th style="background:#374151; color:#fff;">วันเรียนเต็ม</th>
+              <th style="background:#065f46; color:#fff;">มาเรียน (วัน)</th>
+              <th style="background:#991b1b; color:#fff;">ขาด (วัน)</th>
+              <th style="background:#92400e; color:#fff;">ลา/ป่วย (วัน)</th>
+              <th style="background:#3730a3; color:#fff;">สาย (วัน)</th>
+              <th style="background:#1e3a5f; color:#fff;">ร้อยละ (%)</th>
+            </tr>
+          </thead>
+          <tbody id="sumBody">
+            <tr><td colspan="9" class="text-center py-5 text-muted">กรุณาเลือกชั้นเรียนและช่วงเวลา แล้วกด "ประมวลผล"</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -757,7 +811,7 @@ async function afterLogin() {
     termSel.value = currentTerm;
   }
   
-  const navBtns =['btnNavDash','btnNav2','btnNav3','btnLogout'];
+const navBtns =['btnNavDash','btnNav2','btnNav3','btnNavSummary','btnLogout'];
   navBtns.forEach(id => {
       const el = document.getElementById(id);
       if(el) el.style.display='inline-block';
@@ -818,7 +872,7 @@ function logout() {
   currentUser = null; calStudents =[]; calDayData = {}; reportData = null;
   const safe = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
   
-  safe('teacherBadge', el => el.style.display='none');['btnNavDash','btnNav2','btnNav3','btnLogout','btnNavConfig','btnNavLogin','navTermSelector'].forEach(id => safe(id, el => el.style.display='none'));
+  safe('teacherBadge', el => el.style.display='none');['btnNavDash','btnNav2','btnNav3','btnNavSummary','btnLogout','btnNavConfig','btnNavLogin','navTermSelector'].forEach(id => safe(id, el => el.style.display='none'));
   
   // เคลียร์แป้นกดเวลากดออกจากระบบ
   if (typeof clearPin === 'function') clearPin();
@@ -2848,6 +2902,195 @@ async function markTransferIn(studentId, studentName) {
     showToast('ผิดพลาด: ' + e.message, 'error');
   }
   hideProgress();
+}
+
+  // =============================================
+// Yearly / Term Summary Logic (สรุปรายเทอม/ทั้งปี)
+// =============================================
+let summaryRawData = null;
+let summaryTermConfig = null;
+let summaryFilteredDates =[];
+
+function openSummaryPage() {
+  showPage('summaryPage');
+  
+  // คัดลอกรายชื่อห้องจากรายงานเดิมมาใช้
+  const rptCls = document.getElementById('rptClassroom').innerHTML;
+  document.getElementById('sumClassroom').innerHTML = rptCls || `<option value="${currentUser.classroom}">${currentUser.classroom}</option>`;
+  
+  // ดึงค่า Default ตามระบบ
+  document.getElementById('sumTermSelect').value = currentTerm;
+}
+
+// ล้าง single quote (') ที่มาจาก Google Sheets
+function cleanDateStr(str) { 
+  return str ? String(str).replace(/'/g, '').trim() : ''; 
+}
+
+async function loadSummaryData() {
+  const cls = document.getElementById('sumClassroom').value;
+  const termChoice = document.getElementById('sumTermSelect').value;
+  
+  if (!currentYear) { showToast('ไม่พบปีการศึกษา', 'error'); return; }
+
+  showProgress('กำลังประมวลผลข้อมูลทั้งปี...');
+  try {
+    // 1. โหลดข้อมูลการเช็คชื่อทั้งหมดของห้องนี้
+    summaryRawData = await api('getReport', { year: currentYear, classroom: cls, month: '' });
+    
+    // 2. โหลดข้อมูลวันเปิด-ปิดเทอมของปีนี้มาเพื่อใช้คัดแยก
+    summaryTermConfig = await api('getConfigForYear', { year: currentYear });
+
+    renderSummaryTable(termChoice);
+  } catch(e) {
+    showToast('โหลดข้อมูลไม่สำเร็จ: ' + e.message, 'error');
+  }
+  hideProgress();
+}
+
+function renderSummaryTable(termChoice) {
+  const tbody = document.getElementById('sumBody');
+  const kpiRow = document.getElementById('sumKpiRow');
+  
+  if (!summaryRawData || !summaryRawData.students || summaryRawData.students.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-muted">ไม่มีข้อมูลนักเรียน</td></tr>';
+    kpiRow.style.display = 'none';
+    return;
+  }
+
+  // ดึงวันเปิด-ปิดเทอมมาแปลงเป็น Object Date
+  const t1_start = parseThaiDate(cleanDateStr(summaryTermConfig.t1_start));
+  const t1_end   = parseThaiDate(cleanDateStr(summaryTermConfig.t1_end));
+  const t2_start = parseThaiDate(cleanDateStr(summaryTermConfig.t2_start));
+  const t2_end   = parseThaiDate(cleanDateStr(summaryTermConfig.t2_end));
+
+  // คัดกรองวันที่ (นับเฉพาะวันที่ที่มีการเช็คชื่อจริงๆ และอยู่ในช่วงเทอมที่เลือก)
+  summaryFilteredDates = summaryRawData.dates.filter(dateStr => {
+    const d = parseThaiDate(dateStr);
+    if (!d) return false;
+    
+    if (termChoice === '1') {
+      return (t1_start && t1_end && d >= t1_start && d <= t1_end);
+    } else if (termChoice === '2') {
+      return (t2_start && t2_end && d >= t2_start && d <= t2_end);
+    } else {
+      return true; // ทั้งปี (all)
+    }
+  });
+
+  const totalSchoolDays = summaryFilteredDates.length;
+  let html = '';
+  let sumTotalP = 0, sumTotalA = 0, sumTotalL = 0, sumTotalLa = 0;
+
+  summaryRawData.students.forEach((s, idx) => {
+    let p = 0, a = 0, l = 0, la = 0;
+    
+    summaryFilteredDates.forEach(dateStr => {
+      const v = (summaryRawData.attendance[s.studentId] || {})[dateStr] || '';
+      if (v === 'ม') p++;
+      else if (v === 'ข') a++;
+      else if (v === 'ล' || v === 'ป') l++;
+      else if (v === 'ส') la++;
+    });
+
+    sumTotalP += p; sumTotalA += a; sumTotalL += l; sumTotalLa += la;
+    
+    const pct = totalSchoolDays > 0 ? Math.round((p / totalSchoolDays) * 100) : 0;
+    const pctColor = pct < 80 ? 'color:var(--danger);' : 'color:var(--success);';
+
+    html += `<tr>
+      <td class="text-center text-muted">${idx + 1}</td>
+      <td class="text-center">${s.studentId}</td>
+      <td class="name-col fw-bold">${s.name}</td>
+      <td class="text-center fw-bold bg-light">${totalSchoolDays}</td>
+      <td class="text-center fw-bold text-success">${p}</td>
+      <td class="text-center fw-bold text-danger">${a}</td>
+      <td class="text-center fw-bold" style="color:#92400e;">${l}</td>
+      <td class="text-center fw-bold text-info">${la}</td>
+      <td class="text-center fw-bold" style="${pctColor}">${pct}%</td>
+    </tr>`;
+  });
+
+  tbody.innerHTML = html;
+
+  // คำนวณภาพรวมรวมทั้งห้อง
+  const totalSlots = summaryRawData.students.length * totalSchoolDays || 1;
+  const avgPct = Math.round((sumTotalP / totalSlots) * 100);
+
+  kpiRow.innerHTML = `
+    <div class="col-12 col-md-4"><div class="stat-card" style="border-left:4px solid var(--primary);"><div class="stat-num text-primary">${totalSchoolDays} <span style="font-size:1rem;">วัน</span></div><div class="stat-label">จำนวนวันที่มีการจัดการเรียนการสอน</div></div></div>
+    <div class="col-6 col-md-4"><div class="stat-card" style="border-left:4px solid var(--success);"><div class="stat-num text-success">${avgPct}%</div><div class="stat-label">ค่าเฉลี่ยการมาเรียนของห้อง</div></div></div>
+    <div class="col-6 col-md-4"><div class="stat-card" style="border-left:4px solid var(--text-muted);"><div class="stat-num text-dark">${summaryRawData.students.length} <span style="font-size:1rem;">คน</span></div><div class="stat-label">จำนวนนักเรียนทั้งหมด</div></div></div>
+  `;
+  kpiRow.style.display = 'flex';
+}
+
+function printSummaryReport() {
+  if (!summaryRawData || !summaryFilteredDates || summaryFilteredDates.length === 0) {
+    showToast('กรุณากด "ประมวลผล" ก่อนทำการพิมพ์ หรือไม่มีข้อมูลในเทอมนี้', 'error');
+    return;
+  }
+
+  const cls = document.getElementById('sumClassroom').value;
+  const termChoice = document.getElementById('sumTermSelect').value;
+  const termLabel = termChoice === 'all' ? `ตลอดปีการศึกษา` : `ภาคเรียนที่ ${termChoice}`;
+  
+  const schoolName = document.getElementById('navSchoolName')?.textContent || 'โรงเรียนบ้านคลอง 14';
+  const printDate = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+  const totalSchoolDays = summaryFilteredDates.length;
+
+  let trRows = '';
+  summaryRawData.students.forEach((s, idx) => {
+    let p = 0, a = 0, l = 0, la = 0;
+    summaryFilteredDates.forEach(dateStr => {
+      const v = (summaryRawData.attendance[s.studentId] || {})[dateStr] || '';
+      if (v === 'ม') p++; else if (v === 'ข') a++; else if (v === 'ล' || v === 'ป') l++; else if (v === 'ส') la++;
+    });
+
+    const pct = totalSchoolDays > 0 ? Math.round((p / totalSchoolDays) * 100) : 0;
+    const isDanger = pct < 80;
+
+    trRows += `<tr>
+      <td style="text-align:center;">${idx + 1}</td>
+      <td style="text-align:center;">${s.studentId}</td>
+      <td>${s.name}</td>
+      <td style="text-align:center;">${totalSchoolDays}</td>
+      <td style="text-align:center; color:#065f46; font-weight:bold;">${p}</td>
+      <td style="text-align:center; color:#991b1b; font-weight:bold;">${a}</td>
+      <td style="text-align:center; color:#92400e; font-weight:bold;">${l}</td>
+      <td style="text-align:center; color:#3730a3; font-weight:bold;">${la}</td>
+      <td style="text-align:center; font-weight:bold; color:${isDanger ? '#991b1b' : '#065f46'};">${pct}%</td>
+    </tr>`;
+  });
+
+  const tableHead = `<tr>
+    <th style="background:#1e3a5f; color:#fff; width:40px;">ที่</th>
+    <th style="background:#1e3a5f; color:#fff; width:80px;">รหัส</th>
+    <th style="background:#1e3a5f; color:#fff;">ชื่อ-นามสกุล</th>
+    <th style="background:#374151; color:#fff;">เวลาเรียนเต็ม</th>
+    <th style="background:#065f46; color:#fff;">มา</th>
+    <th style="background:#991b1b; color:#fff;">ขาด</th>
+    <th style="background:#92400e; color:#fff;">ลา/ป่วย</th>
+    <th style="background:#3730a3; color:#fff;">สาย</th>
+    <th style="background:#1e3a5f; color:#fff;">ร้อยละ (%)</th>
+  </tr>`;
+
+  // เรียกใช้ฟังก์ชันสร้าง Print template ของเดิมที่มีอยู่แล้ว
+  const html = buildPrintPage({
+    school: schoolName,
+    cls: `ชั้น ${cls}`,
+    currentYear: currentYear,
+    printDate: printDate,
+    title: `สรุปเวลาเรียน ${termLabel}`,
+    subTitle: `ปีการศึกษา ${currentYear} | วันเรียนทั้งหมด ${totalSchoolDays} วัน`,
+    orientation: 'portrait',
+    tableHead: tableHead,
+    tableBody: trRows,
+    summary: `ข้อมูล ณ วันที่ประมวลผล : ${printDate} (รวมเวลาเรียน ${totalSchoolDays} วัน)`,
+    alertNote: `* นักเรียนที่มีเวลาเรียนต่ำกว่า 80% (ตัวอักษรสีแดง) จะไม่มีสิทธิ์สอบ/เลื่อนชั้น ตามระเบียบสถานศึกษา`
+  });
+
+  openPrint(html);
 }
 </script>
 </body>
