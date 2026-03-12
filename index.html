@@ -2733,16 +2733,17 @@ async function confirmAddStudent() {
 async function markTransferOut(studentId, studentName) {
   if (!confirm(`ยืนยันการย้ายออก: ${studentName}?`)) return;
 
-  // ตรวจสอบค่าก่อนส่ง
-  console.log("กำลังส่งค่าปี:", currentYear, "ห้อง:", document.getElementById('calClassroom').value);
+  // ตรวจสอบปีการศึกษา
+  if (!currentYear) {
+     showToast('ไม่พบข้อมูลปีการศึกษา กรุณารีโหลดหน้าเว็บใหม่', 'error');
+     return;
+  }
 
   showProgress('กำลังทำรายการ...');
   try {
-    const cls = document.getElementById('calClassroom').value || currentUser.classroom;
+    const cls = document.getElementById('calClassroom').value; // ดึงจากหน้าจอที่เลือกปัจจุบัน
     
-    // ตรวจสอบว่า currentYear มีค่าจริงๆ
-    if (!currentYear) throw new Error("ระบบหาปีการศึกษาไม่พบ");
-
+    // ส่งข้อมูลไปที่ Backend
     await api('transferOutStudent', { 
       year: currentYear, 
       classroom: cls, 
@@ -2751,12 +2752,13 @@ async function markTransferOut(studentId, studentName) {
     });
     
     showToast('ทำรายการย้ายออกสำเร็จ', 'success');
-    await loadCalendarData();
+    await loadCalendarData(); // โหลดข้อมูลใหม่เพื่อให้ชื่อนักเรียนอัปเดต
   } catch(e) {
     showToast('ผิดพลาด: ' + e.message, 'error');
   }
   hideProgress();
 }
+
 </script>
 </body>
 </html>
