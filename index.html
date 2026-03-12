@@ -2110,12 +2110,12 @@ const isTransferredOut = s.name.includes('(ย้ายออก)');
 const actionBtn = isTransferredOut 
   ? `<button class="btn btn-sm btn-outline-success" style="font-size:0.7rem; padding:2px 6px; margin-left:auto;" onclick="markTransferIn('${s.studentId}', '${s.name}')">✅ ย้ายกลับเข้า</button>`
   : `<button class="btn btn-sm btn-outline-danger" style="font-size:0.7rem; padding:2px 6px; margin-left:auto;" onclick="markTransferOut('${s.studentId}', '${s.name}')">🚪 ย้ายออก</button>`;
-    return `<div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;">
+       return `<div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #f1f5f9;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px; flex-wrap:wrap;">
         <span style="font-size:.88rem; font-weight:600; ${isTransferredOut ? 'text-decoration:line-through; color:#94a3b8;' : ''}">${s.name}</span>
         <span style="font-size:.75rem;color:#94a3b8;">มา ${p} / ขาด ${a}</span>
         ${warningBtn}
-        ${transferBtn}
+        ${actionBtn}  <!-- แก้จาก transferBtn เป็น actionBtn -->
       </div>
       <div class="cal-stu-timeline">${dots}</div>
     </div>`;
